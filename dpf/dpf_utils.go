@@ -6,14 +6,14 @@ import (
 	"crypto/rand"
 )
 
-// RandomBit generates a cryptographically secure random bit.
-func RandomBit() int {
+// RandomBit generates a cryptographically secure random bit returned as a bool.
+func RandomBit() bool {
 	randomByte := make([]byte, 1)
 	_, err := rand.Read(randomByte)
 	if err != nil {
 		panic(err.Error())
 	}
-	return int(randomByte[0] & 1)
+	return (randomByte[0] & 1) == 1
 }
 
 // RandomSeed generates a cryptographically secure random seed with the given length in bytes.
@@ -47,4 +47,16 @@ func PRG(seed []byte, length int) []byte {
 	stream.XORKeyStream(output, output)
 
 	return output
+}
+
+func XORBytes(arrays ...[]byte) []byte {
+	// Assume all byte slices have the same length for simplicity.
+	n := len(arrays[0])
+	result := make([]byte, n)
+	for i := 0; i < n; i++ {
+		for _, arr := range arrays {
+			result[i] ^= arr[i]
+		}
+	}
+	return result
 }
