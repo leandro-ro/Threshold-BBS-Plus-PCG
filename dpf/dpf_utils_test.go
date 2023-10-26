@@ -1,0 +1,65 @@
+package dpf
+
+import (
+	"testing"
+)
+
+// TestRandomBit tests the RandomBit function.
+func TestRandomBit(t *testing.T) {
+	bit := RandomBit()
+	if bit != 0 && bit != 1 {
+		t.Errorf("RandomBit() generated a bit that is not 0 or 1: got %v", bit)
+	}
+}
+
+// TestRandomSeed tests the RandomSeed function.
+func TestRandomSeedLength(t *testing.T) {
+	length := 16
+	seed := RandomSeed(length)
+	if len(seed) != length {
+		t.Errorf("RandomSeed() generated a seed of incorrect length: got %v, want %v", len(seed), length)
+	}
+}
+
+// TestRandomSeed tests the RandomSeed function.
+func TestRandomSeedDuplicates(t *testing.T) {
+	length := 16
+	seed0 := RandomSeed(length)
+	seed1 := RandomSeed(length)
+	if string(seed0) == string(seed1) {
+		t.Errorf("RandomSeed() generated the same seed after multiple callse. This is extremly unlikely.")
+	}
+}
+
+// TestPRGWithSameSeed tests that PRG is deterministic for the same seed.
+func TestPRGWithSameSeed(t *testing.T) {
+	seed := RandomSeed(16)
+	length := 32
+
+	output1 := PRG(seed, length)
+	output2 := PRG(seed, length)
+
+	if string(output1) != string(output2) {
+		t.Errorf("PRG() with the same seed should produce the same output: got %v and %v", output1, output2)
+	}
+}
+
+// TestPRGWithDifferentSeeds tests that PRG produces different outputs for different seeds.
+func TestPRGWithDifferentSeeds(t *testing.T) {
+	seed1 := RandomSeed(16)
+	seed2 := RandomSeed(16)
+
+	// Make sure seed1 and seed2 are different for the test.
+	for string(seed1) == string(seed2) {
+		seed2 = RandomSeed(16)
+	}
+
+	length := 32
+
+	output1 := PRG(seed1, length)
+	output2 := PRG(seed2, length)
+
+	if string(output1) == string(output2) {
+		t.Errorf("PRG() with different seeds should produce different outputs: got %v and %v", output1, output2)
+	}
+}
