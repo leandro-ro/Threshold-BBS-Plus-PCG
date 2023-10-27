@@ -8,13 +8,13 @@ import (
 )
 
 func TestTreeDPFInitialization(t *testing.T) {
-	d, err := treedpf.GetTreeDPF(128)
+	d, err := treedpf.InitFactory(128)
 	assert.Nil(t, err)
 	assert.NotNil(t, d)
 }
 
 func TestTreeDPFKeySerializationAndDeserialization(t *testing.T) {
-	d, _ := treedpf.GetTreeDPF(128)
+	d, _ := treedpf.InitFactory(128)
 
 	x := big.NewInt(5)
 	y := big.NewInt(10)
@@ -33,21 +33,23 @@ func TestTreeDPFKeySerializationAndDeserialization(t *testing.T) {
 }
 
 func TestTreeDPFGenAndEval(t *testing.T) {
-	d, _ := treedpf.GetTreeDPF(128)
+	d, _ := treedpf.InitFactory(128)
 
-	x := big.NewInt(5)
-	y := big.NewInt(10)
+	x := big.NewInt(512315241)
+	y := big.NewInt(4324623623423436)
 
 	k1, k2, err := d.Gen(x, y)
 	assert.Nil(t, err)
 
 	res1, err := d.Eval(k1, x)
 	assert.Nil(t, err)
-	assert.Equal(t, y, res1)
 
 	res2, err := d.Eval(k2, x)
 	assert.Nil(t, err)
 	assert.Equal(t, y, res2)
+
+	result := d.CombineResults(res1, res2)
+	assert.Equal(t, y, result)
 }
 
 // Add more test cases here to cover edge cases, errors, and so on.

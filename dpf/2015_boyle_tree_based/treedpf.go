@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"math/big"
 	"pcg-master-thesis/dpf"
 )
@@ -56,13 +57,14 @@ type TreeDPF struct {
 	PrgOutputLength int      // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
 }
 
-func GetTreeDPF(lambda int) (*TreeDPF, error) {
+func InitFactory(lambda int) (*TreeDPF, error) {
 	if lambda != 128 && lambda != 192 && lambda != 256 {
 		return nil, errors.New("lambda must be 128, 192, or 256")
 	}
 
 	m := lambda
-	modulus := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(m)), nil)
+	modulus := big.NewInt(0).Exp(big.NewInt(2), big.NewInt(int64(m)), nil)
+
 	prgOutputLength := 2*(lambda/8) + 1 // Lambda is divided by 8, as the PRG only outputs multiple of bytes
 
 	return &TreeDPF{
@@ -97,16 +99,17 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	CW := initializeMap2LevelsCW([]uint8{ALICE, BOB}, makeRange(0, n-1))
 
 	// Create initial seeds (Step 2)
-	S[ALICE][0][0] = dpf.RandomSeed(seedLength)
-	S[ALICE][1][0] = dpf.RandomSeed(seedLength)
-	S[BOB][0][0] = dpf.RandomSeed(seedLength)
-	S[BOB][1][0] = S[ALICE][1][0]
+	rootBitA := int(a.Bit(0))
+	S[ALICE][rootBitA][0] = dpf.RandomSeed(seedLength)
+	S[ALICE][1-rootBitA][0] = dpf.RandomSeed(seedLength)
+	S[BOB][rootBitA][0] = dpf.RandomSeed(seedLength)
+	S[BOB][1-rootBitA][0] = S[ALICE][1][0]
 
 	// Initialize initial control bits (Step 2)
-	T[ALICE][0][0] = dpf.RandomBit()
-	T[ALICE][1][0] = dpf.RandomBit()
-	T[BOB][0][0] = !T[ALICE][0][0]
-	T[BOB][1][0] = T[ALICE][1][0]
+	T[ALICE][rootBitA][0] = dpf.RandomBit()
+	T[BOB][rootBitA][0] = !T[ALICE][0][0]
+	T[ALICE][1-rootBitA][0] = dpf.RandomBit()
+	T[BOB][1-rootBitA][0] = T[ALICE][1][0]
 
 	// Loop to populate S, T, and CW (Steps 4 to 13)
 	for i := 0; i < n-1; i++ {
@@ -131,22 +134,22 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 			}
 		}
 
-		nextA := int(a.Bit(i + 1))
-		notNextA := 1 - nextA
+		nextBitA := int(a.Bit(i + 1))
+		notNextBitA := 1 - nextBitA
 
 		// Step 6 & 7: Choose correction words (cs)
-		cs[ALICE][nextA] = dpf.RandomSeed(seedLength)
-		cs[BOB][nextA] = dpf.RandomSeed(seedLength)
+		cs[ALICE][nextBitA] = dpf.RandomSeed(seedLength)
+		cs[BOB][nextBitA] = dpf.RandomSeed(seedLength)
 
-		cs[ALICE][notNextA] = dpf.RandomSeed(seedLength)
-		cs[BOB][notNextA] = dpf.XORBytes(s[ALICE][notNextA], s[BOB][notNextA], cs[ALICE][notNextA])
+		cs[ALICE][notNextBitA] = dpf.RandomSeed(seedLength)
+		cs[BOB][notNextBitA] = dpf.XORBytes(s[ALICE][notNextBitA], s[BOB][notNextBitA], cs[ALICE][notNextBitA])
 
 		// Step 8 & 9: Choose correction bits (ct)
-		ct[ALICE][nextA] = dpf.RandomBit()
-		ct[BOB][nextA] = !(t[ALICE][nextA] != t[BOB][nextA] != ct[ALICE][nextA]) // != is equivalent to XOR
+		ct[ALICE][nextBitA] = dpf.RandomBit()
+		ct[BOB][nextBitA] = !(t[ALICE][nextBitA] != t[BOB][nextBitA] != ct[ALICE][nextBitA]) // != is equivalent to XOR
 
-		ct[ALICE][notNextA] = dpf.RandomBit()
-		ct[BOB][notNextA] = t[ALICE][notNextA] != t[BOB][notNextA] != ct[ALICE][notNextA]
+		ct[ALICE][notNextBitA] = dpf.RandomBit()
+		ct[BOB][notNextBitA] = t[ALICE][notNextBitA] != t[BOB][notNextBitA] != ct[ALICE][notNextBitA]
 
 		// Step 10: Store correction words
 		for _, party := range parties {
@@ -170,14 +173,14 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	finalSeedAlice := S[ALICE][int(a.Bit(n-1))][n-1]
 	finalSeedBob := S[BOB][int(a.Bit(n-1))][n-1]
 
+	fmt.Printf("Seed Alice: %x\n", finalSeedAlice)
+	fmt.Printf("Seed Bob: %x\n", finalSeedBob)
+
 	partialResultAlice := new(big.Int).SetBytes(dpf.PRG(finalSeedAlice, d.PrgOutputLength))
 	partialResultAlice.Mod(partialResultAlice, d.Modulus)
 
 	partialResultBob := new(big.Int).SetBytes(dpf.PRG(finalSeedBob, d.PrgOutputLength))
 	partialResultBob.Mod(partialResultBob, d.Modulus)
-
-	sumTerm := new(big.Int).Add(partialResultAlice, partialResultBob)
-	sumTerm.Mod(sumTerm, d.Modulus)
 
 	// Deviation from Formal Definition for Invertibility:
 	// ---------------------------------------------------
@@ -199,17 +202,27 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	// to increment their partial result by 1, thereby compensating for this adjustment.
 	//
 	// This ensures that 'sum_term' is always odd (and hence, coprime to 2^m), allowing us to find its modular inverse.
+
+	sum := big.NewInt(0)
+	invSum := big.NewInt(0)
 	ensureOdd := false
-	if sumTerm.Bit(0) == 0 {
-		sumTerm.Add(sumTerm, big.NewInt(1))
-		ensureOdd = true
+	if partialResultAlice != partialResultBob {
+		sum.Add(partialResultAlice, partialResultBob)
+		sum.Mod(sum, d.Modulus)
+		if sum.Bit(0) != 1 {
+			sum.Add(sum, big.NewInt(1))
+			ensureOdd = true
+		}
+
+		invSum = sum.ModInverse(sum, d.Modulus)
+		if invSum == nil {
+			return Key{}, Key{}, errors.New("failed to properly calculate w")
+		}
+	} else {
+		return Key{}, Key{}, errors.New("both partial results are equal, which is extremely unlikely")
 	}
 
-	invTerm := new(big.Int).ModInverse(sumTerm, d.Modulus)
-	if invTerm == nil {
-		return Key{}, Key{}, errors.New("failed to properly calculate w")
-	}
-	w := new(big.Int).Mul(invTerm, b)
+	w := invSum.Mul(invSum, b)
 	w.Mod(w, d.Modulus)
 
 	// Randomly decide which key to adjust if sumTerm was made odd
@@ -238,7 +251,6 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 
 func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
 	n := x.BitLen()
-	result := big.NewInt(0)
 	a := x
 
 	// Step 4 & 5: Initialize S and T based on fist bit of x (-> which edge to take to get the initial seed/cbit)
@@ -269,23 +281,26 @@ func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
 			S = dpf.XORBytes(s1, key.CW[T][i-1].Cs1)
 			T = uint8(boolToInt(t1 != key.CW[T][i-1].Ct1)) // != is equivalent to XOR
 		}
+
 	}
+	fmt.Printf("Eval Seed: %x\n", S)
 
-	// Step 23: Update the result
-	partialResult := new(big.Int).SetBytes(dpf.PRG(S, d.PrgOutputLength))
-	partialResult.Mod(partialResult, d.Modulus)
-	result.Add(result, partialResult)
-	result.Mod(result, d.Modulus)
-
-	// Step 24: Finalize result
+	// Step 12: Compute the final output
+	partialResult := big.NewInt(0)
+	partialResult.SetBytes(dpf.PRG(S, d.PrgOutputLength))
 	if key.CompensateSum != 0 {
-		result.Add(result, big.NewInt(1))
-		result.Mod(result, d.Modulus)
+		partialResult.Add(partialResult, big.NewInt(1))
 	}
-	result.Mul(result, key.W)
-	result.Mod(result, d.Modulus)
+	partialResult.Mul(partialResult, key.W)
+	partialResult.Mod(partialResult, d.Modulus)
+	return partialResult, nil
+}
 
-	return result, nil
+func (d *TreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
+	sum := big.NewInt(0)
+	sum.Add(y1, y2)
+	sum.Mod(sum, d.Modulus)
+	return sum
 }
 
 func initializeMap3LevelsBytes(keys1, keys2, keys3 []int) map[int]map[int]map[int][]byte {
