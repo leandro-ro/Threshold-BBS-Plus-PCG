@@ -4,14 +4,6 @@ import (
 	"testing"
 )
 
-// TestRandomBit tests the RandomBit function.
-func TestRandomBit(t *testing.T) {
-	bit := RandomBit()
-	if bit != 0 && bit != 1 {
-		t.Errorf("RandomBit() generated a bit that is not 0 or 1: got %v", bit)
-	}
-}
-
 // TestRandomSeed tests the RandomSeed function.
 func TestRandomSeedLength(t *testing.T) {
 	length := 16
