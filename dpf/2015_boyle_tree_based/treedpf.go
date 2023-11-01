@@ -12,9 +12,9 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"math/big"
 	"pcg-master-thesis/dpf"
+	"pcg-master-thesis/dpf/ffarithmetics"
 )
 
 // Key is a concrete implementation of the Key interface for our specific DPF
@@ -23,7 +23,8 @@ type Key struct {
 	T0, T1        uint8                            // T0, T1 are the initial control bits.
 	CW            map[uint8]map[int]CorrectionWord // CW includes the corrections words of both parties.
 	W             *big.Int                         // W hides the partial result that is needed to recalculate the non-zero element.
-	CompensateSum uint8                            // CompensateSum indicates if the partial result needs to be incremented by 1.
+	CompensateSum int                              // CompensateSum indicates if the partial result needs to be incremented.
+	// TODO: From observations CompensatedSum is always either 0 or 1. We can potentially reduce the key size here.
 }
 
 // Serialize serializes the TKey
@@ -34,7 +35,6 @@ func (k *Key) Serialize() ([]byte, error) {
 	if err := encoder.Encode(k); err != nil {
 		return nil, err
 	}
-
 	return buffer.Bytes(), nil
 }
 
@@ -51,26 +51,28 @@ func (k *Key) Deserialize(data []byte) error {
 }
 
 type TreeDPF struct {
-	Lambda          int      // Lambda is the security parameter and interpreted in number of bits.
-	M               int      // M sets the bit length of the non-zero element. For this implementation it is equal to lambda.
-	Modulus         *big.Int // Modulus is used to do calculations inside a finite field of 2^m.
-	PrgOutputLength int      // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
+	Lambda          int                 // Lambda is the security parameter and interpreted in number of bits.
+	M               int                 // M sets the bit length of the non-zero element. For this implementation it is equal to lambda.
+	GF2M            *ffarithmetics.GF2M // GF2M is used to do calculations inside GF(2^m).
+	PrgOutputLength int                 // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
 }
 
 func InitFactory(lambda int) (*TreeDPF, error) {
 	if lambda != 128 && lambda != 192 && lambda != 256 {
 		return nil, errors.New("lambda must be 128, 192, or 256")
 	}
-
-	m := lambda
-	modulus := big.NewInt(0).Exp(big.NewInt(2), big.NewInt(int64(m)), nil)
-
 	prgOutputLength := 2*(lambda/8) + 1 // Lambda is divided by 8, as the PRG only outputs multiple of bytes
+
+	m := dpf.NextOddPrime(lambda) // For F(2^m) arithmetics, we want m to be an odd prime
+	gf2m, err := ffarithmetics.NewGF2M(m)
+	if err != nil {
+		return nil, err
+	}
 
 	return &TreeDPF{
 		Lambda:          lambda,
 		M:               m,
-		Modulus:         modulus,
+		GF2M:            gf2m,
 		PrgOutputLength: prgOutputLength,
 	}, nil
 }
@@ -173,48 +175,39 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	finalSeedAlice := S[ALICE][int(a.Bit(n-1))][n-1]
 	finalSeedBob := S[BOB][int(a.Bit(n-1))][n-1]
 
-	fmt.Printf("Seed Alice: %x\n", finalSeedAlice)
-	fmt.Printf("Seed Bob: %x\n", finalSeedBob)
-
 	partialResultAlice := new(big.Int).SetBytes(dpf.PRG(finalSeedAlice, d.PrgOutputLength))
-	partialResultAlice.Mod(partialResultAlice, d.Modulus)
-
 	partialResultBob := new(big.Int).SetBytes(dpf.PRG(finalSeedBob, d.PrgOutputLength))
-	partialResultBob.Mod(partialResultBob, d.Modulus)
 
 	// Deviation from Formal Definition for Invertibility:
 	// ---------------------------------------------------
 	// In the standard protocol, we sum the partial results from both parties to get 'sum_term',
-	// and then find its modular inverse modulo 2^m. However, there's no guarantee that 'sum_term'
-	// will be coprime to 2^m, which is essential for finding its modular inverse.
-	//
-	// To overcome this, we introduce an adjustment to ensure that 'sum_term' is odd. Since 2^m is a power of 2,
-	// an odd 'sum_term' is guaranteed to be coprime to 2^m, thereby ensuring its invertibility.
+	// and then find its modular inverse in GF(2^m). However, there's no guarantee that 'sum_term'
+	// will be coprime to the base 10 representation of GF(2^m) polynomial, which is required
+	// for the existence of a modular inverse.
+	// To overcome this, we introduce an adjustment to enforce that 'sum_term' is coprime.
 	//
 	// TODO: Check for security problems
 	//
 	// Flag for Adjustment:
 	// ---------------------
-	// We use a flag named 'ensureOdd' to indicate the need for this adjustment. If 'sum_term' happens to be even,
-	// we increment it by 1 to make it odd and set the ENSURE_ODD flag to True.
+	// We use 'ensureCoprimeDelta' to indicate the need for this adjustment.
+	// To realize this we increment the sum of the partial results by 'ensureCoprimeDelta'.
 	//
-	// This flag will be part of the distributed key and will be used to signal one of the parties (chosen at random)
-	// to increment their partial result by 1, thereby compensating for this adjustment.
-	//
-	// This ensures that 'sum_term' is always odd (and hence, coprime to 2^m), allowing us to find its modular inverse.
+	// This number will be part of the distributed key and will be used to signal the parties to compensate their result.
+	// This ensures that 'sum_term' is always coprime to 'GF2M.Modulus', allowing us to find its modular inverse.
 
 	sum := big.NewInt(0)
 	invSum := big.NewInt(0)
-	ensureOdd := false
-	if partialResultAlice != partialResultBob {
-		sum.Add(partialResultAlice, partialResultBob)
-		sum.Mod(sum, d.Modulus)
-		if sum.Bit(0) != 1 {
-			sum.Add(sum, big.NewInt(1))
-			ensureOdd = true
-		}
+	ensureCoprimeDelta := big.NewInt(0)
 
-		invSum = sum.ModInverse(sum, d.Modulus)
+	if partialResultAlice != partialResultBob {
+		sum = d.GF2M.Add(partialResultAlice, partialResultBob)
+
+		// Check coprime and calculate delta
+		ensureCoprimeDelta = dpf.CheckCoprime(d.GF2M.Modulus, sum)
+		sum = d.GF2M.Add(sum, ensureCoprimeDelta)
+
+		invSum = d.GF2M.Inv(sum)
 		if invSum == nil {
 			return Key{}, Key{}, errors.New("failed to properly calculate w")
 		}
@@ -222,14 +215,10 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 		return Key{}, Key{}, errors.New("both partial results are equal, which is extremely unlikely")
 	}
 
-	w := invSum.Mul(invSum, b)
-	w.Mod(w, d.Modulus)
+	w := d.GF2M.Mul(invSum, b)
 
-	// Randomly decide which key to adjust if sumTerm was made odd
-	sumCompensationFlags := [2]int{0, 0}
-	if ensureOdd {
-		sumCompensationFlags[boolToInt(dpf.RandomBit())] = 1
-	}
+	// Randomly decide how the compensation is distributed on the parties
+	sumCompensation := dpf.DistributeSum(ensureCoprimeDelta)
 
 	// Step 19: Form the keys k0 and k1
 	keys := make(map[int]Key)
@@ -241,7 +230,7 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 			T1:            uint8(boolToInt(T[party][1][0])),
 			CW:            CW,
 			W:             w,
-			CompensateSum: uint8(sumCompensationFlags[party]),
+			CompensateSum: int(sumCompensation[party].Int64()),
 		}
 	}
 
@@ -250,7 +239,7 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 }
 
 func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
-	n := x.BitLen()
+	n := x.BitLen() // TODO: We need to fix the bit length to lambda
 	a := x
 
 	// Step 4 & 5: Initialize S and T based on fist bit of x (-> which edge to take to get the initial seed/cbit)
@@ -283,23 +272,17 @@ func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
 		}
 
 	}
-	fmt.Printf("Eval Seed: %x\n", S)
 
 	// Step 12: Compute the final output
-	partialResult := big.NewInt(0)
-	partialResult.SetBytes(dpf.PRG(S, d.PrgOutputLength))
-	if key.CompensateSum != 0 {
-		partialResult.Add(partialResult, big.NewInt(1))
-	}
-	partialResult.Mul(partialResult, key.W)
-	partialResult.Mod(partialResult, d.Modulus)
+	partialResult := new(big.Int).SetBytes(dpf.PRG(S, d.PrgOutputLength))
+	partialResult = d.GF2M.Add(partialResult, big.NewInt(int64(key.CompensateSum)))
+
+	partialResult = d.GF2M.Mul(key.W, partialResult)
 	return partialResult, nil
 }
 
 func (d *TreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
-	sum := big.NewInt(0)
-	sum.Add(y1, y2)
-	sum.Mod(sum, d.Modulus)
+	sum := d.GF2M.Add(y1, y2)
 	return sum
 }
 
