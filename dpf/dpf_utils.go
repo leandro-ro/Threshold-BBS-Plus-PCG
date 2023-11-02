@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"errors"
 	"math/big"
 )
 
@@ -79,38 +80,43 @@ func NextOddPrime(n int) int {
 	}
 }
 
-// CheckCoprime returns 0 if a and b are coprime, otherwise it returns the delta to add to b to make them coprime.
-func CheckCoprime(a, b *big.Int) *big.Int {
-	delta := big.NewInt(0)
-	one := big.NewInt(1)
-	gcd := big.NewInt(0)
-	temp := new(big.Int)
-
-	for {
-		gcd.GCD(nil, nil, a, temp.Add(b, delta))
-		if gcd.Cmp(one) == 0 {
-			return delta
-		}
-		delta.Add(delta, one)
+// ExtendBigIntToBitLength takes a big.Int 'a' and extends its bit representation with leading zeros to 'lambda' bits.
+// It returns an error if a's bit length is greater than 'lambda'.
+func ExtendBigIntToBitLength(a *big.Int, lambda int) ([]uint, error) {
+	if a.BitLen() > lambda {
+		return nil, errors.New("bit length of 'a' exceeds 'lambda'")
 	}
+
+	bitRepresentation := make([]uint, lambda)
+	for i := 0; i < lambda; i++ {
+		bitRepresentation[lambda-i-1] = uint(a.Bit(i))
+	}
+	return bitRepresentation, nil
 }
 
-// DistributeSum randomly distribute 'sum' into two parts.
-func DistributeSum(sum *big.Int) [2]*big.Int {
-	var sumCompensation [2]*big.Int
+// IncrementBytes takes a number 'b' represented as []byte, increments it by 'val', and returns the incremented value as []byte.
+// The returned []byte will always have the same length as the input 'b'. If the incremented value results in a shorter []byte slice,
+// it is padded with zeros on the left. If it overflows the length of the original slice, the most significant bytes are truncated.
+func IncrementBytes(b []byte, val int) []byte {
+	// Convert the []byte slice to a *big.Int
+	num := new(big.Int).SetBytes(b)
 
-	if sum.Cmp(big.NewInt(0)) == 0 {
-		return [2]*big.Int{big.NewInt(0), big.NewInt(0)}
+	// Increment the *big.Int value
+	num.Add(num, big.NewInt(int64(val)))
+
+	// Convert back to []byte slice
+	result := num.Bytes()
+
+	// Check if the resulting slice is shorter than the original
+	for len(result) < len(b) {
+		result = append([]byte{0}, result...)
 	}
 
-	// Generate a random big.Int between 0 and sum
-	randPart, _ := rand.Int(rand.Reader, sum)
+	// Check if the resulting slice is longer than the original
+	if len(result) > len(b) {
+		overflow := len(result) - len(b)
+		result = result[overflow:]
+	}
 
-	// Calculate the other part so that randPart + otherPart = sum
-	otherPart := new(big.Int).Sub(sum, randPart)
-
-	sumCompensation[0] = randPart
-	sumCompensation[1] = otherPart
-
-	return sumCompensation
+	return result
 }

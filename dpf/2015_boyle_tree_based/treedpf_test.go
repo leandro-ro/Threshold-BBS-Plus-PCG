@@ -87,16 +87,6 @@ func TestTreeDPFGenAndEval192(t *testing.T) {
 
 	result := d.CombineResults(res1, res2)
 	assert.Equal(t, y, result)
-
-	wrongx, _ := rand.Int(rand.Reader, maxInput)
-	res3, err := d.Eval(k1, wrongx)
-	assert.Nil(t, err)
-
-	res4, err := d.Eval(k2, wrongx)
-	assert.Nil(t, err)
-
-	wrong_result := d.CombineResults(res3, res4)
-	assert.NotEqual(t, result, wrong_result)
 }
 
 func TestTreeDPFGenAndEval256(t *testing.T) {
@@ -119,4 +109,124 @@ func TestTreeDPFGenAndEval256(t *testing.T) {
 
 	result := d.CombineResults(res1, res2)
 	assert.Equal(t, y, result)
+}
+
+func TestTreeDPFStress(t *testing.T) {
+	lambda := 256
+	d, err := treedpf.InitFactory(lambda)
+	assert.Nil(t, err)
+
+	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+
+	for i := 0; i < 500; i++ {
+		x, _ := rand.Int(rand.Reader, maxInput)
+		y, _ := rand.Int(rand.Reader, maxInput)
+
+		k1, k2, err := d.Gen(x, y)
+		assert.Nil(t, err)
+
+		res1, err := d.Eval(k1, x)
+		assert.Nil(t, err)
+
+		res2, err := d.Eval(k2, x)
+		assert.Nil(t, err)
+
+		result := d.CombineResults(res1, res2)
+		assert.Equal(t, y, result)
+	}
+}
+
+func TestTreeDPFGenAndEvalToZero(t *testing.T) {
+	lambda := 128
+	d, err := treedpf.InitFactory(lambda)
+	assert.Nil(t, err)
+
+	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	x, _ := rand.Int(rand.Reader, maxInput)
+	wx1, _ := rand.Int(rand.Reader, maxInput)
+	wx2, _ := rand.Int(rand.Reader, maxInput)
+	wx3, _ := rand.Int(rand.Reader, maxInput)
+	zero := big.NewInt(0)
+
+	y, _ := rand.Int(rand.Reader, maxInput)
+
+	k1, k2, err := d.Gen(x, y)
+	assert.Nil(t, err)
+
+	res1, err := d.Eval(k1, x)
+	assert.Nil(t, err)
+	res2, err := d.Eval(k2, x)
+	assert.Equal(t, y, d.CombineResults(res1, res2))
+
+	res1, err = d.Eval(k1, wx1)
+	assert.Nil(t, err)
+	res2, err = d.Eval(k2, wx1)
+	assert.Equal(t, res1, res2)
+	assert.Nil(t, err)
+	assert.Equal(t, zero, d.CombineResults(res1, res2))
+
+	res1, err = d.Eval(k1, wx2)
+	assert.Nil(t, err)
+	res2, err = d.Eval(k2, wx2)
+	assert.Equal(t, res1, res2)
+	assert.Nil(t, err)
+	assert.Equal(t, zero, d.CombineResults(res1, res2))
+
+	res1, err = d.Eval(k1, wx3)
+	assert.Nil(t, err)
+	res2, err = d.Eval(k2, wx3)
+	assert.Equal(t, res1, res2)
+	assert.Nil(t, err)
+	assert.Equal(t, zero, d.CombineResults(res1, res2))
+}
+
+func BenchmarkTreeDPFGen128(b *testing.B) { benchmarkTreeDPFGen(b, 128) }
+func BenchmarkTreeDPFGen192(b *testing.B) { benchmarkTreeDPFGen(b, 192) }
+func BenchmarkTreeDPFGen256(b *testing.B) { benchmarkTreeDPFGen(b, 256) }
+
+func BenchmarkTreeDPFEval128(b *testing.B) { benchmarkTreeDPFEval(b, 128) }
+func BenchmarkTreeDPFEval192(b *testing.B) { benchmarkTreeDPFEval(b, 192) }
+func BenchmarkTreeDPFEval256(b *testing.B) { benchmarkTreeDPFEval(b, 256) }
+
+func benchmarkTreeDPFGen(b *testing.B, lambda int) {
+	d, err := treedpf.InitFactory(lambda)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	x, _ := rand.Int(rand.Reader, maxInput)
+	y, _ := rand.Int(rand.Reader, maxInput)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _, err := d.Gen(x, y)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkTreeDPFEval(b *testing.B, lambda int) {
+	d, err := treedpf.InitFactory(lambda)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	x, _ := rand.Int(rand.Reader, maxInput)
+	y, _ := rand.Int(rand.Reader, maxInput)
+
+	k1, _, err := d.Gen(x, y)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := d.Eval(k1, x)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }

@@ -19,12 +19,11 @@ import (
 
 // Key is a concrete implementation of the Key interface for our specific DPF
 type Key struct {
-	S0, S1        []byte                           // S0, S1 are the initial seeds.
-	T0, T1        uint8                            // T0, T1 are the initial control bits.
-	CW            map[uint8]map[int]CorrectionWord // CW includes the corrections words of both parties.
-	W             *big.Int                         // W hides the partial result that is needed to recalculate the non-zero element.
-	CompensateSum int                              // CompensateSum indicates if the partial result needs to be incremented.
-	// TODO: From observations CompensatedSum is always either 0 or 1. We can potentially reduce the key size here.
+	S0, S1       []byte                           // S0, S1 are the initial seeds.
+	T0, T1       uint8                            // T0, T1 are the initial control bits.
+	CW           map[uint8]map[int]CorrectionWord // CW includes the corrections words of both parties.
+	W            *big.Int                         // W hides the partial result that is needed to recalculate the non-zero element.
+	CoprimeDelta uint8                            // CoprimeDelta indicates to increment the final seed during evaluation by a certain value.
 }
 
 // Serialize serializes the TKey
@@ -79,9 +78,25 @@ func InitFactory(lambda int) (*TreeDPF, error) {
 
 func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Key, error) {
 	// Calculating the bit length of specialPointX
-	a := specialPointX   // This is just syntactic sugar to resemble the formal description of the algorithm.
 	b := nonZeroElementY // This is just syntactic sugar to resemble the formal description of the algorithm.
-	n := a.BitLen()
+
+	// Choosing n here as lambda is a practical consideration. N needs to be constant for all evaluations,
+	// s.t. the all input values besides the special point will evaluate to zero in Eval.
+	// Otherwise, the depth of the tree will vary and the zero requirement of the DPF is not met.
+	n := d.Lambda
+	if specialPointX.BitLen() > d.Lambda {
+		return Key{}, Key{}, errors.New("the special point is too large. It must be within [0, 2^Lambda - 1]")
+
+	}
+
+	// Extend the bit length of specialPointX to lambda.
+	a, err := dpf.ExtendBigIntToBitLength(specialPointX, d.Lambda)
+	if err != nil {
+		return Key{}, Key{}, err
+	}
+
+	//fmt.Printf("X input (Gen): %x\n", a)
+
 	seedLength := d.Lambda / 8
 
 	// Initialize Alice and Bob IDs
@@ -101,17 +116,17 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	CW := initializeMap2LevelsCW([]uint8{ALICE, BOB}, makeRange(0, n-1))
 
 	// Create initial seeds (Step 2)
-	rootBitA := int(a.Bit(0))
+	rootBitA := int(a[0])
 	S[ALICE][rootBitA][0] = dpf.RandomSeed(seedLength)
 	S[ALICE][1-rootBitA][0] = dpf.RandomSeed(seedLength)
 	S[BOB][rootBitA][0] = dpf.RandomSeed(seedLength)
-	S[BOB][1-rootBitA][0] = S[ALICE][1][0]
+	S[BOB][1-rootBitA][0] = S[ALICE][1-rootBitA][0]
 
 	// Initialize initial control bits (Step 2)
 	T[ALICE][rootBitA][0] = dpf.RandomBit()
-	T[BOB][rootBitA][0] = !T[ALICE][0][0]
+	T[BOB][rootBitA][0] = !T[ALICE][rootBitA][0]
 	T[ALICE][1-rootBitA][0] = dpf.RandomBit()
-	T[BOB][1-rootBitA][0] = T[ALICE][1][0]
+	T[BOB][1-rootBitA][0] = T[ALICE][1-rootBitA][0]
 
 	// Loop to populate S, T, and CW (Steps 4 to 13)
 	for i := 0; i < n-1; i++ {
@@ -127,7 +142,7 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 			s[party], cs[party], t[party], ct[party] = initializeSubMaps()
 
 			// Step 5: Use PRG to expand current seed
-			seed := S[party][int(a.Bit(i))][i]
+			seed := S[party][int(a[i])][i]
 			prgOutput[party] = dpf.PRG(seed, d.PrgOutputLength)
 
 			s[party][0], s[party][1], t[party][0], t[party][1], err = splitPRGOutput(prgOutput[party], d.Lambda)
@@ -136,7 +151,7 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 			}
 		}
 
-		nextBitA := int(a.Bit(i + 1))
+		nextBitA := int(a[i+1])
 		notNextBitA := 1 - nextBitA
 
 		// Step 6 & 7: Choose correction words (cs)
@@ -160,7 +175,7 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 
 		// Step 11 & 12: Update S and T for next level
 		for _, party := range parties {
-			tau := boolToInt(T[party][int(a.Bit(i))][i])
+			tau := boolToInt(T[party][int(a[i])][i])
 			for _, alpha := range []int{0, 1} {
 				// Update S
 				S[party][alpha][i+1] = dpf.XORBytes(s[party][alpha], cs[tau][alpha])
@@ -172,65 +187,58 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	}
 
 	// Step 14 to 18: Compute w based on the last level
-	finalSeedAlice := S[ALICE][int(a.Bit(n-1))][n-1]
-	finalSeedBob := S[BOB][int(a.Bit(n-1))][n-1]
+	finalSeedAlice := S[ALICE][int(a[n-1])][n-1]
+	finalSeedBob := S[BOB][int(a[n-1])][n-1]
 
-	partialResultAlice := new(big.Int).SetBytes(dpf.PRG(finalSeedAlice, d.PrgOutputLength))
-	partialResultBob := new(big.Int).SetBytes(dpf.PRG(finalSeedBob, d.PrgOutputLength))
-
-	// Deviation from Formal Definition for Invertibility:
-	// ---------------------------------------------------
-	// In the standard protocol, we sum the partial results from both parties to get 'sum_term',
-	// and then find its modular inverse in GF(2^m). However, there's no guarantee that 'sum_term'
-	// will be coprime to the base 10 representation of GF(2^m) polynomial, which is required
-	// for the existence of a modular inverse.
-	// To overcome this, we introduce an adjustment to enforce that 'sum_term' is coprime.
-	//
-	// TODO: Check for security problems
-	//
-	// Flag for Adjustment:
-	// ---------------------
-	// We use 'ensureCoprimeDelta' to indicate the need for this adjustment.
-	// To realize this we increment the sum of the partial results by 'ensureCoprimeDelta'.
-	//
-	// This number will be part of the distributed key and will be used to signal the parties to compensate their result.
-	// This ensures that 'sum_term' is always coprime to 'GF2M.Modulus', allowing us to find its modular inverse.
-
+	sumIsCoprime := false
 	sum := big.NewInt(0)
 	invSum := big.NewInt(0)
-	ensureCoprimeDelta := big.NewInt(0)
+	ensureCoprimeDelta := uint8(0)
 
-	if partialResultAlice != partialResultBob {
-		sum = d.GF2M.Add(partialResultAlice, partialResultBob)
+	// We need to ensure that the sum of the partial results is coprime to the modulus of the GF2m arithmetics.
+	// This is realized here by incrementing the final seeds of each party repeatedly until we get a coprime sum.
+	// This also allows us to solve the unlikely case that both PRG evaluation result in the same value.
+	for !sumIsCoprime {
+		partialResultAlice := new(big.Int).SetBytes(dpf.PRG(finalSeedAlice, d.PrgOutputLength))
+		partialResultBob := new(big.Int).SetBytes(dpf.PRG(finalSeedBob, d.PrgOutputLength))
 
-		// Check coprime and calculate delta
-		ensureCoprimeDelta = dpf.CheckCoprime(d.GF2M.Modulus, sum)
-		sum = d.GF2M.Add(sum, ensureCoprimeDelta)
+		// It is very unlikely that both partial results are equal.
+		// In that case we want to increment either way, hence do not need to check if the sum is coprime.
+		if partialResultAlice != partialResultBob {
+			sum = d.GF2M.Add(partialResultAlice, partialResultBob)
 
-		invSum = d.GF2M.Inv(sum)
-		if invSum == nil {
-			return Key{}, Key{}, errors.New("failed to properly calculate w")
+			// Check if Modulus and sum are coprime.
+			gcd := new(big.Int).GCD(nil, nil, d.GF2M.Modulus, sum)
+			sumIsCoprime = gcd.Cmp(big.NewInt(1)) == 0
 		}
-	} else {
-		return Key{}, Key{}, errors.New("both partial results are equal, which is extremely unlikely")
+
+		if !sumIsCoprime {
+			if !(ensureCoprimeDelta < 255) {
+				return Key{}, Key{}, errors.New("no coprime to modulus found")
+			}
+			ensureCoprimeDelta++
+			finalSeedAlice = dpf.IncrementBytes(finalSeedAlice, 1)
+			finalSeedBob = dpf.IncrementBytes(finalSeedBob, 1)
+		}
+	}
+	invSum = d.GF2M.Inv(sum)
+	if invSum == nil {
+		return Key{}, Key{}, errors.New("no inverse existing")
 	}
 
 	w := d.GF2M.Mul(invSum, b)
-
-	// Randomly decide how the compensation is distributed on the parties
-	sumCompensation := dpf.DistributeSum(ensureCoprimeDelta)
 
 	// Step 19: Form the keys k0 and k1
 	keys := make(map[int]Key)
 	for _, party := range []int{ALICE, BOB} {
 		keys[party] = Key{
-			S0:            S[party][0][0],
-			S1:            S[party][1][0],
-			T0:            uint8(boolToInt(T[party][0][0])),
-			T1:            uint8(boolToInt(T[party][1][0])),
-			CW:            CW,
-			W:             w,
-			CompensateSum: int(sumCompensation[party].Int64()),
+			S0:           S[party][0][0],
+			S1:           S[party][1][0],
+			T0:           uint8(boolToInt(T[party][0][0])),
+			T1:           uint8(boolToInt(T[party][1][0])),
+			CW:           CW,
+			W:            w,
+			CoprimeDelta: ensureCoprimeDelta,
 		}
 	}
 
@@ -239,19 +247,29 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 }
 
 func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
-	n := x.BitLen() // TODO: We need to fix the bit length to lambda
-	a := x
+	n := d.Lambda
+
+	if x.BitLen() > d.Lambda {
+		return nil, errors.New("the given point is too large. It must be within [0, 2^Lambda - 1]")
+	}
+
+	a, err := dpf.ExtendBigIntToBitLength(x, d.Lambda)
+	if err != nil {
+		return nil, err
+	}
 
 	// Step 4 & 5: Initialize S and T based on fist bit of x (-> which edge to take to get the initial seed/cbit)
 	var S []byte
 	var T uint8
-	if a.Bit(0) == 0 {
+	if a[0] == 0 {
 		S = key.S0
 		T = key.T0
 	} else {
 		S = key.S1
 		T = key.T1
 	}
+
+	//fmt.Printf("Seed for %d: 0x%x\n", 0, string(S))
 
 	// Step 6 to 11: Iterate through levels to update S and T
 	for i := 1; i < n; i++ {
@@ -263,25 +281,29 @@ func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
 		}
 
 		// Step 8 to 10: Update S and T based on the next bit and correction word
-		if x.Bit(i) == 0 {
+		if a[i] == 0 {
 			S = dpf.XORBytes(s0, key.CW[T][i-1].Cs0)
 			T = uint8(boolToInt(t0 != key.CW[T][i-1].Ct0)) // != is equivalent to XOR
+
 		} else {
 			S = dpf.XORBytes(s1, key.CW[T][i-1].Cs1)
 			T = uint8(boolToInt(t1 != key.CW[T][i-1].Ct1)) // != is equivalent to XOR
 		}
-
 	}
 
-	// Step 12: Compute the final output
-	partialResult := new(big.Int).SetBytes(dpf.PRG(S, d.PrgOutputLength))
-	partialResult = d.GF2M.Add(partialResult, big.NewInt(int64(key.CompensateSum)))
+	// Compensate coprime delta
+	finalSeed := dpf.IncrementBytes(S, int(key.CoprimeDelta))
 
+	// Step 12: Compute the final output
+	partialResult := new(big.Int).SetBytes(dpf.PRG(finalSeed, d.PrgOutputLength))
 	partialResult = d.GF2M.Mul(key.W, partialResult)
 	return partialResult, nil
 }
 
 func (d *TreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
+	if y1.Cmp(y2) == 0 {
+		return big.NewInt(0)
+	}
 	sum := d.GF2M.Add(y1, y2)
 	return sum
 }
