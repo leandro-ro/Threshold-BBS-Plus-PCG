@@ -4,8 +4,8 @@ import "math/big"
 
 // Key is an interface for DPF keys.
 type Key interface {
-	// Methods that every DPF key must implement
-	// For example, we might have methods for serializing or deserializing the key here
+	Serialize() ([]byte, error)
+	Deserialize(data []byte) error
 }
 
 // DPF is an interface for Distributed Point Functions.
