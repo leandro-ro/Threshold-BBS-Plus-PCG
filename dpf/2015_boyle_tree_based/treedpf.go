@@ -17,7 +17,7 @@ import (
 	"pcg-master-thesis/dpf/ffarithmetics"
 )
 
-// Key is a concrete implementation of the Key interface for our specific DPF
+// Key is a concrete implementation of the Key interface for this Tree based DPF.
 type Key struct {
 	S0, S1       []byte                           // S0, S1 are the initial seeds.
 	T0, T1       uint8                            // T0, T1 are the initial control bits.
@@ -26,7 +26,7 @@ type Key struct {
 	CoprimeDelta uint8                            // CoprimeDelta indicates to increment the final seed during evaluation by a certain value.
 }
 
-// Serialize serializes the TKey
+// Serialize serializes the Key into a byte slice for storage or transmission.
 func (k *Key) Serialize() ([]byte, error) {
 	var buffer bytes.Buffer
 	encoder := gob.NewEncoder(&buffer)
@@ -37,7 +37,7 @@ func (k *Key) Serialize() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// Deserialize deserializes the TKey
+// Deserialize takes a byte slice and populates the Key with the serialized data.
 func (k *Key) Deserialize(data []byte) error {
 	buffer := bytes.NewBuffer(data)
 	decoder := gob.NewDecoder(buffer)
@@ -49,6 +49,7 @@ func (k *Key) Deserialize(data []byte) error {
 	return nil
 }
 
+// TreeDPF is the main structure to initialize, generate, and evaluate the tree-based DPF.
 type TreeDPF struct {
 	Lambda          int                 // Lambda is the security parameter and interpreted in number of bits.
 	M               int                 // M sets the bit length of the non-zero element. For this implementation it is equal to lambda.
@@ -56,6 +57,8 @@ type TreeDPF struct {
 	PrgOutputLength int                 // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
 }
 
+// InitFactory initializes a new TreeDPF structure with the given security parameter lambda.
+// It returns an error if lambda is not one of the allowed values (128, 192, 256).
 func InitFactory(lambda int) (*TreeDPF, error) {
 	if lambda != 128 && lambda != 192 && lambda != 256 {
 		return nil, errors.New("lambda must be 128, 192, or 256")
@@ -76,11 +79,12 @@ func InitFactory(lambda int) (*TreeDPF, error) {
 	}, nil
 }
 
+// Gen generates two DPF keys based on a given special point and non-zero element.
+// This method follows the Gen algorithm described in the aforementioned paper.
 func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Key, error) {
-	// Calculating the bit length of specialPointX
 	b := nonZeroElementY // This is just syntactic sugar to resemble the formal description of the algorithm.
 
-	// Choosing n here as lambda is a practical consideration. N needs to be constant for all evaluations,
+	// Choosing n as lambda is a practical consideration. N needs to be constant for all evaluations,
 	// s.t. the all input values besides the special point will evaluate to zero in Eval.
 	// Otherwise, the depth of the tree will vary and the zero requirement of the DPF is not met.
 	n := d.Lambda
@@ -94,8 +98,6 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	if err != nil {
 		return Key{}, Key{}, err
 	}
-
-	//fmt.Printf("X input (Gen): %x\n", a)
 
 	seedLength := d.Lambda / 8
 
@@ -246,6 +248,8 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	return keys[ALICE], keys[BOB], nil
 }
 
+// Eval evaluates a DPF key at a given point x and returns the result.
+// This method follows the Eval algorithm from the paper.
 func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
 	n := d.Lambda
 
@@ -268,8 +272,6 @@ func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
 		S = key.S1
 		T = key.T1
 	}
-
-	//fmt.Printf("Seed for %d: 0x%x\n", 0, string(S))
 
 	// Step 6 to 11: Iterate through levels to update S and T
 	for i := 1; i < n; i++ {
@@ -300,6 +302,9 @@ func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
 	return partialResult, nil
 }
 
+// CombineResults takes the results from two DPF key evaluations for a certain point and combines them.
+// When both y1 and y2 are equal, the point used for evaluation was not the special point and the combined result
+// is 0, according to the definition of a Point Function.
 func (d *TreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
 	if y1.Cmp(y2) == 0 {
 		return big.NewInt(0)
@@ -308,6 +313,13 @@ func (d *TreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
 	return sum
 }
 
+// CorrectionWord holds the correction words and bits for the DPF key.
+type CorrectionWord struct {
+	Cs0, Cs1 []byte
+	Ct0, Ct1 bool
+}
+
+// initializeMap3LevelsBytes initializes a 3-level nested map with byte slices.
 func initializeMap3LevelsBytes(keys1, keys2, keys3 []int) map[int]map[int]map[int][]byte {
 	m := make(map[int]map[int]map[int][]byte)
 	for _, k1 := range keys1 {
@@ -322,6 +334,7 @@ func initializeMap3LevelsBytes(keys1, keys2, keys3 []int) map[int]map[int]map[in
 	return m
 }
 
+// initializeMap3LevelsBool initializes a 3-level nested map with boolean values.
 func initializeMap3LevelsBool(keys1, keys2, keys3 []int) map[int]map[int]map[int]bool {
 	m := make(map[int]map[int]map[int]bool)
 	for _, k1 := range keys1 {
@@ -336,11 +349,7 @@ func initializeMap3LevelsBool(keys1, keys2, keys3 []int) map[int]map[int]map[int
 	return m
 }
 
-type CorrectionWord struct {
-	Cs0, Cs1 []byte
-	Ct0, Ct1 bool
-}
-
+// initializeMap2LevelsCW initializes a 2-level map with CorrectionWord values.
 func initializeMap2LevelsCW(keys1 []uint8, keys2 []int) map[uint8]map[int]CorrectionWord {
 	m := make(map[uint8]map[int]CorrectionWord)
 	for _, k1 := range keys1 {
@@ -352,6 +361,7 @@ func initializeMap2LevelsCW(keys1 []uint8, keys2 []int) map[uint8]map[int]Correc
 	return m
 }
 
+// makeRange creates a slice of integers ranging from min to max.
 func makeRange(min, max int) []int {
 	a := make([]int, max-min)
 	for i := range a {
@@ -360,6 +370,7 @@ func makeRange(min, max int) []int {
 	return a
 }
 
+// splitPRGOutput splits the output of the PRG into two seeds and two control bits.
 func splitPRGOutput(prgOutput []byte, lambda int) ([]byte, []byte, bool, bool, error) {
 	lambdaBytes := lambda / 8
 	if len(prgOutput) < 2*lambdaBytes+1 {
@@ -374,10 +385,12 @@ func splitPRGOutput(prgOutput []byte, lambda int) ([]byte, []byte, bool, bool, e
 	return s0, s1, t0, t1, nil
 }
 
+// initializeSubMaps initializes maps for s, cs, t, and ct values used in the Gen method.
 func initializeSubMaps() (map[int][]byte, map[int][]byte, map[int]bool, map[int]bool) {
 	return make(map[int][]byte), make(map[int][]byte), make(map[int]bool), make(map[int]bool)
 }
 
+// boolToInt converts a boolean value to its integer representation.
 func boolToInt(b bool) int {
 	if b {
 		return 1
