@@ -34,6 +34,7 @@ func (k *Key) Serialize() ([]byte, error) {
 	if err := encoder.Encode(k); err != nil {
 		return nil, err
 	}
+
 	return buffer.Bytes(), nil
 }
 
@@ -47,6 +48,22 @@ func (k *Key) Deserialize(data []byte) error {
 	}
 
 	return nil
+}
+
+// TypeID returns the identifier of the Key interface.
+func (k *Key) TypeID() dpf.KeyType {
+	return dpf.TreeDPFKeyID
+}
+
+// EmptyKey creates and returns a new instance of an empty TreeDPF Key.
+func EmptyKey() *Key {
+	return &Key{
+		S0:           []byte{},
+		S1:           []byte{},
+		CW:           make(map[uint8]map[int]CorrectionWord),
+		W:            big.NewInt(0),
+		CoprimeDelta: 0,
+	}
 }
 
 // TreeDPF is the main structure to initialize, generate, and evaluate the tree-based DPF.
@@ -81,7 +98,7 @@ func InitFactory(lambda int) (*TreeDPF, error) {
 
 // Gen generates two DPF keys based on a given special point and non-zero element.
 // This method follows the Gen algorithm described in the aforementioned paper.
-func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Key, error) {
+func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.Key, dpf.Key, error) {
 	b := nonZeroElementY // This is just syntactic sugar to resemble the formal description of the algorithm.
 
 	// Choosing n as lambda is a practical consideration. N needs to be constant for all evaluations,
@@ -89,14 +106,14 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	// Otherwise, the depth of the tree will vary and the zero requirement of the DPF is not met.
 	n := d.Lambda
 	if specialPointX.BitLen() > d.Lambda {
-		return Key{}, Key{}, errors.New("the special point is too large. It must be within [0, 2^Lambda - 1]")
+		return &Key{}, &Key{}, errors.New("the special point is too large. It must be within [0, 2^Lambda - 1]")
 
 	}
 
 	// Extend the bit length of specialPointX to lambda.
 	a, err := dpf.ExtendBigIntToBitLength(specialPointX, d.Lambda)
 	if err != nil {
-		return Key{}, Key{}, err
+		return &Key{}, &Key{}, err
 	}
 
 	seedLength := d.Lambda / 8
@@ -149,7 +166,7 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 
 			s[party][0], s[party][1], t[party][0], t[party][1], err = splitPRGOutput(prgOutput[party], d.Lambda)
 			if err != nil {
-				return Key{}, Key{}, err
+				return &Key{}, &Key{}, err
 			}
 		}
 
@@ -216,7 +233,7 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 
 		if !sumIsCoprime {
 			if !(ensureCoprimeDelta < 255) {
-				return Key{}, Key{}, errors.New("no coprime to modulus found")
+				return &Key{}, &Key{}, errors.New("no coprime to modulus found")
 			}
 			ensureCoprimeDelta++
 			finalSeedAlice = dpf.IncrementBytes(finalSeedAlice, 1)
@@ -225,15 +242,15 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 	}
 	invSum = d.GF2M.Inv(sum)
 	if invSum == nil {
-		return Key{}, Key{}, errors.New("no inverse existing")
+		return &Key{}, &Key{}, errors.New("no inverse existing")
 	}
 
 	w := d.GF2M.Mul(invSum, b)
 
 	// Step 19: Form the keys k0 and k1
-	keys := make(map[int]Key)
+	keys := make(map[int]*Key)
 	for _, party := range []int{ALICE, BOB} {
-		keys[party] = Key{
+		keys[party] = &Key{
 			S0:           S[party][0][0],
 			S1:           S[party][1][0],
 			T0:           uint8(boolToInt(T[party][0][0])),
@@ -250,7 +267,13 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Ke
 
 // Eval evaluates a DPF key at a given point x and returns the result.
 // This method follows the Eval algorithm from the paper.
-func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
+func (d *TreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
+	// Use a type assertion to convert dpf.Key to the concrete type *treedpf.Key
+	tkey, ok := key.(*Key)
+	if !ok {
+		return nil, errors.New("the given key is not a tree-based DPF key")
+	}
+
 	n := d.Lambda
 
 	if x.BitLen() > d.Lambda {
@@ -266,11 +289,11 @@ func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
 	var S []byte
 	var T uint8
 	if a[0] == 0 {
-		S = key.S0
-		T = key.T0
+		S = tkey.S0
+		T = tkey.T0
 	} else {
-		S = key.S1
-		T = key.T1
+		S = tkey.S1
+		T = tkey.T1
 	}
 
 	// Step 6 to 11: Iterate through levels to update S and T
@@ -284,21 +307,21 @@ func (d *TreeDPF) Eval(key Key, x *big.Int) (*big.Int, error) {
 
 		// Step 8 to 10: Update S and T based on the next bit and correction word
 		if a[i] == 0 {
-			S = dpf.XORBytes(s0, key.CW[T][i-1].Cs0)
-			T = uint8(boolToInt(t0 != key.CW[T][i-1].Ct0)) // != is equivalent to XOR
+			S = dpf.XORBytes(s0, tkey.CW[T][i-1].Cs0)
+			T = uint8(boolToInt(t0 != tkey.CW[T][i-1].Ct0)) // != is equivalent to XOR
 
 		} else {
-			S = dpf.XORBytes(s1, key.CW[T][i-1].Cs1)
-			T = uint8(boolToInt(t1 != key.CW[T][i-1].Ct1)) // != is equivalent to XOR
+			S = dpf.XORBytes(s1, tkey.CW[T][i-1].Cs1)
+			T = uint8(boolToInt(t1 != tkey.CW[T][i-1].Ct1)) // != is equivalent to XOR
 		}
 	}
 
 	// Compensate coprime delta
-	finalSeed := dpf.IncrementBytes(S, int(key.CoprimeDelta))
+	finalSeed := dpf.IncrementBytes(S, int(tkey.CoprimeDelta))
 
 	// Step 12: Compute the final output
 	partialResult := new(big.Int).SetBytes(dpf.PRG(finalSeed, d.PrgOutputLength))
-	partialResult = d.GF2M.Mul(key.W, partialResult)
+	partialResult = d.GF2M.Mul(tkey.W, partialResult)
 	return partialResult, nil
 }
 
