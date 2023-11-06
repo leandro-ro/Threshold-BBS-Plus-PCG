@@ -38,7 +38,7 @@ func TestTreeDPFKeySerializationAndDeserialization(t *testing.T) {
 	serialized, err := k1.Serialize()
 	assert.Nil(t, err)
 
-	var deserialized treedpf.Key
+	deserialized := new(treedpf.Key)
 	err = deserialized.Deserialize(serialized)
 	assert.Nil(t, err)
 
