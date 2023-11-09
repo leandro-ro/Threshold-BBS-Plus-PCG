@@ -14,16 +14,14 @@ import (
 	"errors"
 	"math/big"
 	"pcg-master-thesis/dpf"
-	"pcg-master-thesis/dpf/ffarithmetics"
 )
 
 // Key is a concrete implementation of the Key interface for this Tree based DPF.
 type Key struct {
-	S0, S1       []byte                           // S0, S1 are the initial seeds.
-	T0, T1       uint8                            // T0, T1 are the initial control bits.
-	CW           map[uint8]map[int]CorrectionWord // CW includes the corrections words of both parties.
-	W            *big.Int                         // W hides the partial result that is needed to recalculate the non-zero element.
-	CoprimeDelta uint8                            // CoprimeDelta indicates to increment the final seed during evaluation by a certain value.
+	S0, S1 []byte                           // S0, S1 are the initial seeds.
+	T0, T1 uint8                            // T0, T1 are the initial control bits.
+	CW     map[uint8]map[int]CorrectionWord // CW includes the corrections words of both parties.
+	W      *big.Int                         // W hides the partial result that is needed to recalculate the non-zero element.
 }
 
 // Serialize serializes the Key into a byte slice for storage or transmission.
@@ -58,20 +56,18 @@ func (k *Key) TypeID() dpf.KeyType {
 // EmptyKey creates and returns a new instance of an empty TreeDPF Key.
 func EmptyKey() *Key {
 	return &Key{
-		S0:           []byte{},
-		S1:           []byte{},
-		CW:           make(map[uint8]map[int]CorrectionWord),
-		W:            big.NewInt(0),
-		CoprimeDelta: 0,
+		S0: []byte{},
+		S1: []byte{},
+		CW: make(map[uint8]map[int]CorrectionWord),
+		W:  big.NewInt(0),
 	}
 }
 
 // TreeDPF is the main structure to initialize, generate, and evaluate the tree-based DPF.
 type TreeDPF struct {
-	Lambda          int                 // Lambda is the security parameter and interpreted in number of bits.
-	M               int                 // M sets the bit length of the non-zero element. For this implementation it is equal to lambda.
-	GF2M            *ffarithmetics.GF2M // GF2M is used to do calculations inside GF(2^m).
-	PrgOutputLength int                 // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
+	Lambda          int      // Lambda is the security parameter and interpreted in number of bits.
+	PrgOutputLength int      // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
+	Modulus         *big.Int // Modulus is the mod of the group we are calculating in and is supposed to be prime.
 }
 
 // InitFactory initializes a new TreeDPF structure with the given security parameter lambda.
@@ -82,17 +78,13 @@ func InitFactory(lambda int) (*TreeDPF, error) {
 	}
 	prgOutputLength := 2*(lambda/8) + 1 // Lambda is divided by 8, as the PRG only outputs multiple of bytes
 
-	m := dpf.NextOddPrime(lambda) // For F(2^m) arithmetics, we want m to be an odd prime
-	gf2m, err := ffarithmetics.NewGF2M(m)
-	if err != nil {
-		return nil, err
-	}
+	pow := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	modulus := dpf.NextPrime(pow)
 
 	return &TreeDPF{
 		Lambda:          lambda,
-		M:               m,
-		GF2M:            gf2m,
 		PrgOutputLength: prgOutputLength,
+		Modulus:         modulus,
 	}, nil
 }
 
@@ -209,55 +201,34 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.Key
 	finalSeedAlice := S[ALICE][int(a[n-1])][n-1]
 	finalSeedBob := S[BOB][int(a[n-1])][n-1]
 
-	sumIsCoprime := false
-	sum := big.NewInt(0)
-	invSum := big.NewInt(0)
-	ensureCoprimeDelta := uint8(0)
+	partialResultAlice := new(big.Int).SetBytes(dpf.PRG(finalSeedAlice, d.PrgOutputLength))
+	partialResultBob := new(big.Int).SetBytes(dpf.PRG(finalSeedBob, d.PrgOutputLength))
 
-	// We need to ensure that the sum of the partial results is coprime to the modulus of the GF2m arithmetics.
-	// This is realized here by incrementing the final seeds of each party repeatedly until we get a coprime sum.
-	// This also allows us to solve the unlikely case that both PRG evaluation result in the same value.
-	for !sumIsCoprime {
-		partialResultAlice := new(big.Int).SetBytes(dpf.PRG(finalSeedAlice, d.PrgOutputLength))
-		partialResultBob := new(big.Int).SetBytes(dpf.PRG(finalSeedBob, d.PrgOutputLength))
-
-		// It is very unlikely that both partial results are equal.
-		// In that case we want to increment either way, hence do not need to check if the sum is coprime.
-		if partialResultAlice != partialResultBob {
-			sum = d.GF2M.Add(partialResultAlice, partialResultBob)
-
-			// Check if Modulus and sum are coprime.
-			gcd := new(big.Int).GCD(nil, nil, d.GF2M.Modulus, sum)
-			sumIsCoprime = gcd.Cmp(big.NewInt(1)) == 0
-		}
-
-		if !sumIsCoprime {
-			if !(ensureCoprimeDelta < 255) {
-				return &Key{}, &Key{}, errors.New("no coprime to modulus found")
-			}
-			ensureCoprimeDelta++
-			finalSeedAlice = dpf.IncrementBytes(finalSeedAlice, 1)
-			finalSeedBob = dpf.IncrementBytes(finalSeedBob, 1)
-		}
+	// It is very unlikely that both partial results are equal.
+	if partialResultAlice == partialResultBob {
+		return &Key{}, &Key{}, errors.New("partial results are equal which is very unlikely")
 	}
-	invSum = d.GF2M.Inv(sum)
+
+	sum := new(big.Int).Add(partialResultAlice, partialResultBob)
+	sum = sum.Mod(sum, d.Modulus)
+
+	invSum := new(big.Int).ModInverse(sum, d.Modulus)
 	if invSum == nil {
-		return &Key{}, &Key{}, errors.New("no inverse existing")
+		return &Key{}, &Key{}, errors.New("no inverse existing. Check the modulus being used")
 	}
 
-	w := d.GF2M.Mul(invSum, b)
+	w := new(big.Int).Mul(invSum, b)
 
 	// Step 19: Form the keys k0 and k1
 	keys := make(map[int]*Key)
 	for _, party := range []int{ALICE, BOB} {
 		keys[party] = &Key{
-			S0:           S[party][0][0],
-			S1:           S[party][1][0],
-			T0:           uint8(boolToInt(T[party][0][0])),
-			T1:           uint8(boolToInt(T[party][1][0])),
-			CW:           CW,
-			W:            w,
-			CoprimeDelta: ensureCoprimeDelta,
+			S0: S[party][0][0],
+			S1: S[party][1][0],
+			T0: uint8(boolToInt(T[party][0][0])),
+			T1: uint8(boolToInt(T[party][1][0])),
+			CW: CW,
+			W:  w,
 		}
 	}
 
@@ -316,12 +287,10 @@ func (d *TreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 		}
 	}
 
-	// Compensate coprime delta
-	finalSeed := dpf.IncrementBytes(S, int(tkey.CoprimeDelta))
-
 	// Step 12: Compute the final output
-	partialResult := new(big.Int).SetBytes(dpf.PRG(finalSeed, d.PrgOutputLength))
-	partialResult = d.GF2M.Mul(tkey.W, partialResult)
+	partialResult := new(big.Int).SetBytes(dpf.PRG(S, d.PrgOutputLength))
+	partialResultW := new(big.Int).Mul(tkey.W, partialResult)
+	partialResult.Mod(partialResultW, d.Modulus)
 	return partialResult, nil
 }
 
@@ -332,7 +301,8 @@ func (d *TreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
 	if y1.Cmp(y2) == 0 {
 		return big.NewInt(0)
 	}
-	sum := d.GF2M.Add(y1, y2)
+	sum := new(big.Int).Add(y1, y2)
+	sum.Mod(sum, d.Modulus)
 	return sum
 }
 

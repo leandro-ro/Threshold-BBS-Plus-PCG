@@ -64,18 +64,29 @@ func XORBytes(arrays ...[]byte) []byte {
 	return result
 }
 
-// NextOddPrime returns the next odd prime number greater than or equal to n.
-func NextOddPrime(n int) int {
-	// Start from n; if n is even, go to the next odd number
-	start := big.NewInt(int64(n))
-	if start.Bit(0) == 0 {
-		start.Add(start, big.NewInt(1))
+// NextPrime returns the next prime number greater than n.
+func NextPrime(n *big.Int) *big.Int {
+	// Make a copy of n to avoid modifying the input value
+	start := new(big.Int).Set(n)
+
+	// If start is less than 2, return 2
+	two := big.NewInt(2)
+	if start.Cmp(two) < 0 {
+		return two
 	}
 
-	// Search for the next odd prime
+	// Increment start until it's odd, if it was even
+	if start.Bit(0) == 0 {
+		start.Add(start, big.NewInt(1))
+	} else {
+		// If start is odd, start checking from the next possible prime
+		start.Add(start, big.NewInt(2))
+	}
+
+	// Search for the next prime
 	for {
 		if start.ProbablyPrime(20) {
-			return int(start.Int64())
+			return start
 		}
 		start.Add(start, big.NewInt(2))
 	}
@@ -93,31 +104,4 @@ func ExtendBigIntToBitLength(a *big.Int, lambda int) ([]uint, error) {
 		bitRepresentation[lambda-i-1] = uint(a.Bit(i))
 	}
 	return bitRepresentation, nil
-}
-
-// IncrementBytes takes a number 'b' represented as []byte, increments it by 'val', and returns the incremented value as []byte.
-// The returned []byte will always have the same length as the input 'b'. If the incremented value results in a shorter []byte slice,
-// it is padded with zeros on the left. If it overflows the length of the original slice, the most significant bytes are truncated.
-func IncrementBytes(b []byte, val int) []byte {
-	// Convert the []byte slice to a *big.Int
-	num := new(big.Int).SetBytes(b)
-
-	// Increment the *big.Int value
-	num.Add(num, big.NewInt(int64(val)))
-
-	// Convert back to []byte slice
-	result := num.Bytes()
-
-	// Check if the resulting slice is shorter than the original
-	for len(result) < len(b) {
-		result = append([]byte{0}, result...)
-	}
-
-	// Check if the resulting slice is longer than the original
-	if len(result) > len(b) {
-		overflow := len(result) - len(b)
-		result = result[overflow:]
-	}
-
-	return result
 }
