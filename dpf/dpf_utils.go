@@ -105,30 +105,3 @@ func ExtendBigIntToBitLength(a *big.Int, lambda int) ([]uint, error) {
 	}
 	return bitRepresentation, nil
 }
-
-// IncrementBytes takes a number 'b' represented as []byte, increments it by 'val', and returns the incremented value as []byte.
-// The returned []byte will always have the same length as the input 'b'. If the incremented value results in a shorter []byte slice,
-// it is padded with zeros on the left. If it overflows the length of the original slice, the most significant bytes are truncated.
-func IncrementBytes(b []byte, val int) []byte {
-	// Convert the []byte slice to a *big.Int
-	num := new(big.Int).SetBytes(b)
-
-	// Increment the *big.Int value
-	num.Add(num, big.NewInt(int64(val)))
-
-	// Convert back to []byte slice
-	result := num.Bytes()
-
-	// Check if the resulting slice is shorter than the original
-	for len(result) < len(b) {
-		result = append([]byte{0}, result...)
-	}
-
-	// Check if the resulting slice is longer than the original
-	if len(result) > len(b) {
-		overflow := len(result) - len(b)
-		result = result[overflow:]
-	}
-
-	return result
-}
