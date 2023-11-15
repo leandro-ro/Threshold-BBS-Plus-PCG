@@ -105,3 +105,76 @@ func ExtendBigIntToBitLength(a *big.Int, lambda int) ([]uint, error) {
 	}
 	return bitRepresentation, nil
 }
+
+func ConvertBitArrayToBytes(bits []uint) []byte {
+	bytes := make([]byte, (len(bits)+7)/8)
+	for i, bit := range bits {
+		if bit == 1 {
+			bytes[(len(bits)-1-i)/8] |= 1 << (uint(i) % 8)
+		}
+	}
+	return bytes
+}
+
+// InitializeMap3LevelsBytes initializes a 3-level nested map with byte slices.
+func InitializeMap3LevelsBytes(keys1, keys2, keys3 []int) map[int]map[int]map[int][]byte {
+	m := make(map[int]map[int]map[int][]byte)
+	for _, k1 := range keys1 {
+		m[k1] = make(map[int]map[int][]byte)
+		for _, k2 := range keys2 {
+			m[k1][k2] = make(map[int][]byte)
+			for _, k3 := range keys3 {
+				m[k1][k2][k3] = nil
+			}
+		}
+	}
+	return m
+}
+
+// InitializeMap2LevelsBytes initializes a 2-level nested map with byte slices.
+func InitializeMap2LevelsBytes(keys1, keys2 []int) map[int]map[int][]byte {
+	m := make(map[int]map[int][]byte)
+	for _, k1 := range keys1 {
+		m[k1] = make(map[int][]byte)
+		for _, k2 := range keys2 {
+			m[k1][k2] = nil
+		}
+	}
+	return m
+}
+
+// InitializeMap3LevelsBool initializes a 3-level nested map with boolean values.
+func InitializeMap3LevelsBool(keys1, keys2, keys3 []int) map[int]map[int]map[int]bool {
+	m := make(map[int]map[int]map[int]bool)
+	for _, k1 := range keys1 {
+		m[k1] = make(map[int]map[int]bool)
+		for _, k2 := range keys2 {
+			m[k1][k2] = make(map[int]bool)
+			for _, k3 := range keys3 {
+				m[k1][k2][k3] = false
+			}
+		}
+	}
+	return m
+}
+
+// InitializeMap2LevelsBool initializes a 2-level nested map with boolean values.
+func InitializeMap2LevelsBool(keys1, keys2 []int) map[int]map[int]bool {
+	m := make(map[int]map[int]bool)
+	for _, k1 := range keys1 {
+		m[k1] = make(map[int]bool)
+		for _, k2 := range keys2 {
+			m[k1][k2] = false
+		}
+	}
+	return m
+}
+
+// MakeRange creates a slice of integers ranging from min to max.
+func MakeRange(min, max int) []int {
+	a := make([]int, max-min)
+	for i := range a {
+		a[i] = min + i
+	}
+	return a
+}
