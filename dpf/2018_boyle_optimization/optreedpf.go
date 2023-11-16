@@ -5,8 +5,12 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"math"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bn254_fp "github.com/consensys/gnark-crypto/ecc/bn254/fp"
+
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	"math/big"
 	"pcg-master-thesis/dpf"
 )
@@ -62,27 +66,33 @@ type CorrectionWord struct {
 }
 
 type OpTreeDPF struct {
-	Lambda          int      // Lambda is the security parameter and interpreted in number of bits.
-	PrgOutputLength int      // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
-	Modulus         *big.Int // Modulus is the size of the group we are calculating in and is supposed to be prime.
+	Lambda          int    // Lambda is the security parameter and interpreted in number of bits.
+	PrgOutputLength int    // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
+	Curve           ecc.ID // Curve is the elliptic curve used for the group operations.
 }
 
 // InitFactory initializes a new OpTreeDPF structure with the given security parameter lambda.
 // It returns an error if lambda is not one of the allowed values (128, 192, 256).
 func InitFactory(lambda int) (*OpTreeDPF, error) {
-	if lambda != 128 && lambda != 192 && lambda != 256 {
+	// Select the curve
+	var curve ecc.ID
+	switch lambda {
+	case 128:
+		curve = ecc.BN254
+	case 192:
+		curve = ecc.BW6_761
+	case 256:
+		curve = ecc.SECP256K1
+	default:
 		return nil, errors.New("lambda must be 128, 192, or 256")
 	}
-	prgOutputLength := 2 * (lambda/8 + 1) // Lambda is divided by 8, as the PRG only outputs multiple of bytes
 
-	// Get Secp256k1 curve and the order of its group
-	curve := secp256k1.S256()
-	groupOrder := curve.Params().N
+	prgOutputLength := 2 * (lambda/8 + 1)
 
 	return &OpTreeDPF{
 		Lambda:          lambda,
 		PrgOutputLength: prgOutputLength,
-		Modulus:         groupOrder,
+		Curve:           curve,
 	}, nil
 }
 
@@ -180,29 +190,11 @@ func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.K
 
 	// Step 15: Compute final "Correction Word" and hide beta in it.
 	finalSeedAlice := new(big.Int).SetBytes(s[ALICE][n])
-	// print finalSeedAlice:
-	fmt.Printf("finalSeedAlice: %x\n", finalSeedAlice)
-	finalSeedAlice, err = d.convertToGroupElement(finalSeedAlice)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	finalSeedBob := new(big.Int).SetBytes(s[BOB][n])
-	// print finalSeedBob:
-	fmt.Printf("finalSeedBob: %x\n", finalSeedBob)
-	finalSeedBob, err = d.convertToGroupElement(finalSeedBob)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	res := d.modAdd(finalSeedAlice, finalSeedBob)
-	res.Sub(beta, res)
-	if t[ALICE][n] {
-		res.Neg(res)
-	}
+	res, err := d.genGroupCalc(finalSeedAlice, finalSeedBob, beta, t[ALICE][n])
 
 	CW[n] = CorrectionWord{
-		s:  res.Bytes(),
+		s:  res,
 		tl: false, // Value of tl and tr doesn't matter for the last CW
 		tr: false,
 	}
@@ -277,74 +269,216 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 			t = tr
 		}
 	}
-
-	// Print s:
-	fmt.Printf("s: %x\n", s)
-
 	// Step 10: Calculate partial result
-	finalSeed, err := d.convertToGroupElement(new(big.Int).SetBytes(s))
+	finalSeed := new(big.Int).SetBytes(s)
+	partialResult, err := d.evalGroupCalc(finalSeed, tkey.CW[n].s, tkey.ID, t)
 	if err != nil {
 		return nil, err
 	}
-
-	partialResult := finalSeed
-	if t {
-		finalCW := new(big.Int).SetBytes(tkey.CW[n].s)
-		partialResult = d.modAdd(partialResult, finalCW)
-	}
-	if tkey.ID == 1 {
-		partialResult = d.modInv(partialResult)
-	}
-
 	return partialResult, nil
 }
 
-// ConvertToGroupElement converts a big.Int s to a group element in G represented as a big.Int
-func (d *OpTreeDPF) convertToGroupElement(s *big.Int) (*big.Int, error) {
-	sBits, err := dpf.ExtendBigIntToBitLength(s, d.Lambda)
-	if err != nil {
-		return nil, err
-	}
-	sBytes := dpf.ConvertBitArrayToBytes(sBits)
-
-	groupBitSize := uint(d.Modulus.BitLen())
-	m := uint(math.Log2(float64(groupBitSize)))
-
-	// Calculate PRG output length in bytes
-	prgOutputLength := d.Lambda / 8
-
-	if d.Modulus.Cmp(big.NewInt(1<<m)) == 0 { // Check if Modulus is 2^m
-		if m <= uint(d.Lambda) {
-			return new(big.Int).SetBytes(sBytes[:m/8]), nil // Return the first m bits of s
-		} else {
-			prgOutput := dpf.PRG(sBytes, prgOutputLength) // Extend sBytes to PRG output length
-			return new(big.Int).SetBytes(prgOutput[:m/8]), nil
+func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
+	switch d.Curve {
+	case ecc.BN254:
+		y1C, err := ConvertToG128(y1)
+		if err != nil {
+			panic(err)
 		}
-	} else {
-		prgOutput := dpf.PRG(sBytes, prgOutputLength) // Extend sBytes to PRG output length
-		num := new(big.Int).SetBytes(prgOutput)
-		return num.Mod(num, d.Modulus), nil // Return G(s) mod u
+		y2C, err := ConvertToG128(y2)
+		if err != nil {
+			panic(err)
+		}
+		// Print both y1C and y2C to see if they are on the curve
+		fmt.Println(y1C.String())
+		fmt.Println(y2C.String())
+
+		y1C.Add(y1C, y2C)
+		y1Bytes := y1C.Bytes()
+		y1Sliced := y1Bytes[:]
+		return new(big.Int).SetBytes(y1Sliced)
 	}
+
+	return new(big.Int).Add(y1, y2)
 }
 
-// ModAdd performs modular addition
-func (d *OpTreeDPF) modAdd(a, b *big.Int) *big.Int {
-	result := new(big.Int).Add(a, b)
-	result.Mod(result, d.Modulus)
-	return result
+func (d *OpTreeDPF) genGroupCalc(finalSeedAlice, finalSeedBob, beta *big.Int, t bool) ([]byte, error) {
+	var result []byte
+	switch d.Curve {
+	case ecc.BN254:
+		finalSeedAliceC, err := ConvertToG128(finalSeedAlice)
+		if err != nil {
+			return nil, err
+		}
+		finalSeedBobC, err := ConvertToG128(finalSeedBob)
+		if err != nil {
+			return nil, err
+		}
+		betaC, err := ConvertToG128(beta)
+		if err != nil {
+			return nil, err
+		}
+		seedSum := finalSeedAliceC.Add(finalSeedAliceC, finalSeedBobC)
+		res := betaC.Sub(betaC, seedSum)
+		if t {
+			res = res.Neg(res)
+		}
+		resBytes := res.Bytes() // This is a compressed byte representation of the point
+		result = resBytes[:]
+	case ecc.BW6_761:
+		finalSeedAliceC, err := ConvertToG192(finalSeedAlice)
+		if err != nil {
+			return nil, err
+		}
+		finalSeedBobC, err := ConvertToG192(finalSeedBob)
+		if err != nil {
+			return nil, err
+		}
+		betaC, err := ConvertToG192(beta)
+		if err != nil {
+			return nil, err
+		}
+		seedSum := finalSeedAliceC.Add(&finalSeedAliceC, &finalSeedBobC)
+		res := betaC.Sub(&betaC, seedSum)
+
+		if t {
+			res = res.Neg(res)
+		}
+		resBytes := res.Bytes() // This is a compressed byte representation of the point
+		result = resBytes[:]
+	case ecc.SECP256K1:
+		finalSeedAliceC, err := ConvertToG256(finalSeedAlice)
+		if err != nil {
+			return nil, err
+		}
+		finalSeedBobC, err := ConvertToG256(finalSeedBob)
+		if err != nil {
+			return nil, err
+		}
+		betaC, err := ConvertToG256(beta)
+		if err != nil {
+			return nil, err
+		}
+		seedSum := finalSeedAliceC.Add(&finalSeedAliceC, &finalSeedBobC)
+		res := betaC.Sub(&betaC, seedSum)
+
+		if t {
+			res = res.Neg(res)
+		}
+		resBytes := res.RawBytes() // There is no compressed byte representation for secp256k1 available
+		result = resBytes[:]
+	default:
+		return nil, errors.New("curve not supported")
+	}
+	return result, nil
 }
 
-// ModMul performs modular multiplication
-func (d *OpTreeDPF) modMul(a, b *big.Int) *big.Int {
-	result := new(big.Int).Mul(a, b)
-	result.Mod(result, d.Modulus)
-	return result
+func (d *OpTreeDPF) evalGroupCalc(finalSeed *big.Int, cw []byte, id uint8, t bool) (*big.Int, error) {
+	var result *big.Int
+	switch d.Curve {
+	case ecc.BN254:
+		finalSeedC, err := ConvertToG128(finalSeed)
+		if err != nil {
+			return nil, err
+		}
+		cwC := new(bn254.G1Affine)
+		_, err = cwC.SetBytes(cw)
+		if err != nil {
+			return nil, err
+		}
+		partialResult := new(bn254.G1Affine)
+		partialResult.Set(finalSeedC)
+		if t {
+			partialResult.Add(finalSeedC, cwC)
+		}
+		if id == 1 {
+			partialResult.Neg(partialResult)
+		}
+		partialResultBytes := partialResult.Bytes()
+		partialResultSliced := partialResultBytes[:]
+		result = new(big.Int).SetBytes(partialResultSliced)
+	case ecc.BW6_761:
+		finalSeedC, err := ConvertToG192(finalSeed)
+		if err != nil {
+			return nil, err
+		}
+		cwC := new(bw6761.G1Affine)
+		_, err = cwC.SetBytes(cw)
+		if err != nil {
+			return nil, err
+		}
+		partialResult := new(bw6761.G1Affine)
+		partialResult.Set(&finalSeedC)
+		if t {
+			partialResult.Add(&finalSeedC, cwC)
+		}
+		if id == 1 {
+			partialResult.Neg(partialResult)
+		}
+		partialResultBytes := partialResult.Bytes()
+		partialResultSliced := partialResultBytes[:]
+		result = new(big.Int).SetBytes(partialResultSliced)
+	case ecc.SECP256K1:
+		finalSeedC, err := ConvertToG256(finalSeed)
+		if err != nil {
+			return nil, err
+		}
+		cwC := new(secp256k1.G1Affine)
+		_, err = cwC.SetBytes(cw)
+		if err != nil {
+			return nil, err
+		}
+		partialResult := new(secp256k1.G1Affine)
+		partialResult.Set(&finalSeedC)
+		if t {
+			partialResult.Add(&finalSeedC, cwC)
+		}
+		if id == 1 {
+			partialResult.Neg(partialResult)
+		}
+		partialResultBytes := partialResult.RawBytes()
+		partialResultSliced := partialResultBytes[:]
+		result = new(big.Int).SetBytes(partialResultSliced)
+	default:
+		return nil, errors.New("curve not supported")
+	}
+	return result, nil
 }
 
-// ModInv finds the modular inverse
-func (d *OpTreeDPF) modInv(a *big.Int) *big.Int {
-	result := new(big.Int).Sub(d.Modulus, a)
-	return result
+func ConvertToG128(input *big.Int) (*bn254_fp.Element, error) {
+	//domainSepTag := "DistPointFunc128"
+	//element, err := bn254.HashToG1(input.Bytes(), []byte(domainSepTag))
+	//if err != nil {
+	//	return bn254.G1Affine{}, err
+	//}
+
+	element := bn254_fp.NewElement(input.Uint64())
+	return &element, nil
+}
+
+func ConvertToG192(input *big.Int) (bw6761.G1Affine, error) {
+	domainSepTag := "DistPointFunc192"
+	element, err := bw6761.HashToG1(input.Bytes(), []byte(domainSepTag))
+	if err != nil {
+		return bw6761.G1Affine{}, err
+	}
+	if !element.IsOnCurve() {
+		return bw6761.G1Affine{}, errors.New("conversion failed. element is not on curve")
+	}
+
+	return element, nil
+}
+
+func ConvertToG256(input *big.Int) (secp256k1.G1Affine, error) {
+	domainSepTag := "DistPointFunc256"
+	element, err := secp256k1.HashToG1(input.Bytes(), []byte(domainSepTag))
+	if err != nil {
+		return secp256k1.G1Affine{}, err
+	}
+	if !element.IsOnCurve() {
+		return secp256k1.G1Affine{}, errors.New("conversion failed. element is not on curve")
+	}
+	return element, nil
 }
 
 // splitPRGOutput splits the output of the PRG into two seeds and two control bits.
