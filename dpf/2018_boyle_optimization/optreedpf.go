@@ -6,11 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254"
 	bn254_fp "github.com/consensys/gnark-crypto/ecc/bn254/fp"
 
-	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
-	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	"math/big"
 	"pcg-master-thesis/dpf"
 )
@@ -99,8 +96,6 @@ func InitFactory(lambda int) (*OpTreeDPF, error) {
 // Gen generates two DPF keys based on a given special point and non-zero element.
 // This method follows the Gen algorithm described in the aforementioned paper.
 func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.Key, dpf.Key, error) {
-	beta := nonZeroElementY // This is just syntactic sugar to resemble the formal description of the algorithm.
-
 	// Choosing n as lambda is a practical consideration. N needs to be constant for all evaluations,
 	// s.t. the all input values besides the special point will evaluate to zero in Eval.
 	// Otherwise, the depth of the tree will vary and the zero requirement of the DPF is not met.
@@ -108,6 +103,11 @@ func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.K
 	if specialPointX.BitLen() > d.Lambda {
 		return &Key{}, &Key{}, errors.New("the special point is too large. It must be within [0, 2^Lambda - 1]")
 
+	}
+
+	beta := nonZeroElementY // This is just syntactic sugar to resemble the formal description of the algorithm.
+	if beta.Cmp(d.Curve.BaseField()) == 1 {
+		return &Key{}, &Key{}, errors.New("the non-zero element is too large for the group order used")
 	}
 
 	// Extend the bit length of specialPointX to lambda.
@@ -191,7 +191,7 @@ func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.K
 	// Step 15: Compute final "Correction Word" and hide beta in it.
 	finalSeedAlice := new(big.Int).SetBytes(s[ALICE][n])
 	finalSeedBob := new(big.Int).SetBytes(s[BOB][n])
-	res, err := d.genGroupCalc(finalSeedAlice, finalSeedBob, beta, t[ALICE][n])
+	res, err := d.genGroupCalc(finalSeedAlice, finalSeedBob, beta, t[BOB][n])
 
 	CW[n] = CorrectionWord{
 		s:  res,
@@ -271,6 +271,10 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 	}
 	// Step 10: Calculate partial result
 	finalSeed := new(big.Int).SetBytes(s)
+
+	// print id and t in one line:
+	fmt.Println("t: ", t, "ID: ", tkey.ID)
+
 	partialResult, err := d.evalGroupCalc(finalSeed, tkey.CW[n].s, tkey.ID, t)
 	if err != nil {
 		return nil, err
@@ -279,93 +283,52 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 }
 
 func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
+	var result *big.Int
 	switch d.Curve {
 	case ecc.BN254:
-		y1C, err := ConvertToG128(y1)
-		if err != nil {
-			panic(err)
-		}
-		y2C, err := ConvertToG128(y2)
-		if err != nil {
-			panic(err)
-		}
-		// Print both y1C and y2C to see if they are on the curve
-		fmt.Println(y1C.String())
-		fmt.Println(y2C.String())
+		y1C := new(bn254_fp.Element).SetBigInt(y1)
+		y2C := new(bn254_fp.Element).SetBigInt(y2)
 
-		y1C.Add(y1C, y2C)
-		y1Bytes := y1C.Bytes()
-		y1Sliced := y1Bytes[:]
-		return new(big.Int).SetBytes(y1Sliced)
+		// print y1C and y2C:
+		fmt.Println("y1C: ", y1C)
+		fmt.Println("y2C: ", y2C)
+
+		res := new(bn254_fp.Element).Add(y1C, y2C)
+
+		resBytes := res.Bytes()
+		result = new(big.Int).SetBytes(resBytes[:])
 	}
 
-	return new(big.Int).Add(y1, y2)
+	return result
 }
 
 func (d *OpTreeDPF) genGroupCalc(finalSeedAlice, finalSeedBob, beta *big.Int, t bool) ([]byte, error) {
 	var result []byte
 	switch d.Curve {
 	case ecc.BN254:
-		finalSeedAliceC, err := ConvertToG128(finalSeedAlice)
+		finalSeedAliceC, err := d.ConvertToG128(finalSeedAlice)
 		if err != nil {
 			return nil, err
 		}
-		finalSeedBobC, err := ConvertToG128(finalSeedBob)
+		finalSeedBobC, err := d.ConvertToG128(finalSeedBob)
 		if err != nil {
 			return nil, err
 		}
-		betaC, err := ConvertToG128(beta)
-		if err != nil {
-			return nil, err
-		}
-		seedSum := finalSeedAliceC.Add(finalSeedAliceC, finalSeedBobC)
-		res := betaC.Sub(betaC, seedSum)
-		if t {
-			res = res.Neg(res)
-		}
-		resBytes := res.Bytes() // This is a compressed byte representation of the point
-		result = resBytes[:]
-	case ecc.BW6_761:
-		finalSeedAliceC, err := ConvertToG192(finalSeedAlice)
-		if err != nil {
-			return nil, err
-		}
-		finalSeedBobC, err := ConvertToG192(finalSeedBob)
-		if err != nil {
-			return nil, err
-		}
-		betaC, err := ConvertToG192(beta)
-		if err != nil {
-			return nil, err
-		}
-		seedSum := finalSeedAliceC.Add(&finalSeedAliceC, &finalSeedBobC)
-		res := betaC.Sub(&betaC, seedSum)
+		// print finalSeedAliceC and finalSeedBobC:
+		fmt.Println("FinalSeedAlice: ", finalSeedAliceC)
+		fmt.Println("FinalSeedBob: ", finalSeedBobC)
+
+		betaC := new(bn254_fp.Element).SetBigInt(beta) // No conversion here, as we would lose beta with this
+		sumSeeds := new(bn254_fp.Element).Add(finalSeedAliceC, finalSeedBobC)
+		betaCsubSeeds := new(bn254_fp.Element).Sub(betaC, sumSeeds)
+
+		res := new(bn254_fp.Element).Set(betaCsubSeeds)
 
 		if t {
-			res = res.Neg(res)
+			res.Neg(res)
 		}
-		resBytes := res.Bytes() // This is a compressed byte representation of the point
-		result = resBytes[:]
-	case ecc.SECP256K1:
-		finalSeedAliceC, err := ConvertToG256(finalSeedAlice)
-		if err != nil {
-			return nil, err
-		}
-		finalSeedBobC, err := ConvertToG256(finalSeedBob)
-		if err != nil {
-			return nil, err
-		}
-		betaC, err := ConvertToG256(beta)
-		if err != nil {
-			return nil, err
-		}
-		seedSum := finalSeedAliceC.Add(&finalSeedAliceC, &finalSeedBobC)
-		res := betaC.Sub(&betaC, seedSum)
 
-		if t {
-			res = res.Neg(res)
-		}
-		resBytes := res.RawBytes() // There is no compressed byte representation for secp256k1 available
+		resBytes := res.Bytes() // We need to slice the result to get from [32]byte to generic []byte
 		result = resBytes[:]
 	default:
 		return nil, errors.New("curve not supported")
@@ -377,107 +340,46 @@ func (d *OpTreeDPF) evalGroupCalc(finalSeed *big.Int, cw []byte, id uint8, t boo
 	var result *big.Int
 	switch d.Curve {
 	case ecc.BN254:
-		finalSeedC, err := ConvertToG128(finalSeed)
+		finalSeedC, err := d.ConvertToG128(finalSeed)
+		// print final seed c
+		fmt.Println("FinalSeedEval: ", finalSeedC)
 		if err != nil {
 			return nil, err
 		}
-		cwC := new(bn254.G1Affine)
-		_, err = cwC.SetBytes(cw)
-		if err != nil {
-			return nil, err
-		}
-		partialResult := new(bn254.G1Affine)
-		partialResult.Set(finalSeedC)
+		cwC := new(bn254_fp.Element).SetBytes(cw)
+		res := new(bn254_fp.Element).Set(finalSeedC)
 		if t {
-			partialResult.Add(finalSeedC, cwC)
+			res.Add(finalSeedC, cwC)
 		}
 		if id == 1 {
-			partialResult.Neg(partialResult)
+			res.Neg(res)
 		}
-		partialResultBytes := partialResult.Bytes()
-		partialResultSliced := partialResultBytes[:]
-		result = new(big.Int).SetBytes(partialResultSliced)
-	case ecc.BW6_761:
-		finalSeedC, err := ConvertToG192(finalSeed)
-		if err != nil {
-			return nil, err
-		}
-		cwC := new(bw6761.G1Affine)
-		_, err = cwC.SetBytes(cw)
-		if err != nil {
-			return nil, err
-		}
-		partialResult := new(bw6761.G1Affine)
-		partialResult.Set(&finalSeedC)
-		if t {
-			partialResult.Add(&finalSeedC, cwC)
-		}
-		if id == 1 {
-			partialResult.Neg(partialResult)
-		}
-		partialResultBytes := partialResult.Bytes()
-		partialResultSliced := partialResultBytes[:]
-		result = new(big.Int).SetBytes(partialResultSliced)
-	case ecc.SECP256K1:
-		finalSeedC, err := ConvertToG256(finalSeed)
-		if err != nil {
-			return nil, err
-		}
-		cwC := new(secp256k1.G1Affine)
-		_, err = cwC.SetBytes(cw)
-		if err != nil {
-			return nil, err
-		}
-		partialResult := new(secp256k1.G1Affine)
-		partialResult.Set(&finalSeedC)
-		if t {
-			partialResult.Add(&finalSeedC, cwC)
-		}
-		if id == 1 {
-			partialResult.Neg(partialResult)
-		}
-		partialResultBytes := partialResult.RawBytes()
-		partialResultSliced := partialResultBytes[:]
-		result = new(big.Int).SetBytes(partialResultSliced)
+
+		// print cwc
+		fmt.Println("CW: ", cwC)
+
+		resBytes := res.Bytes()
+		result = new(big.Int).SetBytes(resBytes[:])
 	default:
 		return nil, errors.New("curve not supported")
 	}
 	return result, nil
 }
 
-func ConvertToG128(input *big.Int) (*bn254_fp.Element, error) {
-	//domainSepTag := "DistPointFunc128"
-	//element, err := bn254.HashToG1(input.Bytes(), []byte(domainSepTag))
-	//if err != nil {
-	//	return bn254.G1Affine{}, err
-	//}
-
-	element := bn254_fp.NewElement(input.Uint64())
-	return &element, nil
-}
-
-func ConvertToG192(input *big.Int) (bw6761.G1Affine, error) {
-	domainSepTag := "DistPointFunc192"
-	element, err := bw6761.HashToG1(input.Bytes(), []byte(domainSepTag))
+func (d *OpTreeDPF) ConvertToG128(input *big.Int) (*bn254_fp.Element, error) {
+	inputExtended, err := dpf.ExtendBigIntToBitLength(input, d.Lambda)
 	if err != nil {
-		return bw6761.G1Affine{}, err
+		return nil, err
 	}
-	if !element.IsOnCurve() {
-		return bw6761.G1Affine{}, errors.New("conversion failed. element is not on curve")
-	}
+	inputExBytes := dpf.ConvertBitArrayToBytes(inputExtended)
 
-	return element, nil
-}
+	// The BN254 curve has a prime order q, so we an directly return the group element given by the PRG mod q.
+	prgOutput := dpf.PRG(inputExBytes, d.PrgOutputLength)
+	prgOutputInt := new(big.Int).SetBytes(prgOutput)
 
-func ConvertToG256(input *big.Int) (secp256k1.G1Affine, error) {
-	domainSepTag := "DistPointFunc256"
-	element, err := secp256k1.HashToG1(input.Bytes(), []byte(domainSepTag))
-	if err != nil {
-		return secp256k1.G1Affine{}, err
-	}
-	if !element.IsOnCurve() {
-		return secp256k1.G1Affine{}, errors.New("conversion failed. element is not on curve")
-	}
+	element := new(bn254_fp.Element)
+	element.SetBigInt(prgOutputInt) // Includes Mod operation
+
 	return element, nil
 }
 
