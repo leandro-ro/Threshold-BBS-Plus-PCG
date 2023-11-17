@@ -5,7 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"github.com/consensys/gnark-crypto/ecc"
-	bn254_fp "github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	secp256k1fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 
 	"math/big"
 	"pcg-master-thesis/dpf"
@@ -57,14 +57,14 @@ func EmptyKey() *Key {
 
 // CorrectionWord represents a correction word for a specific level in the DPF Tree.
 type CorrectionWord struct {
-	s      []byte
-	tl, tr bool
+	S      []byte
+	Tl, Tr bool
 }
 
 type OpTreeDPF struct {
-	Lambda          int    // Lambda is the security parameter and interpreted in number of bits.
-	PrgOutputLength int    // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
-	Curve           ecc.ID // Curve is the elliptic curve used for the group operations.
+	Lambda          int      // Lambda is the security parameter and interpreted in number of bits.
+	PrgOutputLength int      // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
+	BetaMax         *big.Int // BetaMax is the maximum value of the non-zero element.
 }
 
 // InitFactory initializes a new OpTreeDPF structure with the given security parameter lambda.
@@ -73,12 +73,8 @@ func InitFactory(lambda int) (*OpTreeDPF, error) {
 	// Select the curve. We will use the group order of the curve for the group operations.
 	var curve ecc.ID
 	switch lambda {
-	case 128:
-		curve = ecc.BN254
-	case 192:
-		curve = ecc.BW6_761
-	case 256:
-		curve = ecc.SECP256K1
+	case 128, 192, 256:
+		curve = ecc.SECP256K1 // This limits the non-zero elm to 256 bits
 	default:
 		return nil, errors.New("lambda must be 128, 192, or 256")
 	}
@@ -88,7 +84,7 @@ func InitFactory(lambda int) (*OpTreeDPF, error) {
 	return &OpTreeDPF{
 		Lambda:          lambda,
 		PrgOutputLength: prgOutputLength,
-		Curve:           curve,
+		BetaMax:         new(big.Int).Sub(curve.BaseField(), big.NewInt(1)),
 	}, nil
 }
 
@@ -96,7 +92,7 @@ func InitFactory(lambda int) (*OpTreeDPF, error) {
 // This method follows the Gen algorithm described in the aforementioned paper.
 func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.Key, dpf.Key, error) {
 	// Choosing n as lambda is a practical consideration. N needs to be constant for all evaluations,
-	// s.t. the all input values besides the special point will evaluate to zero in Eval.
+	// S.t. the all input values besides the special point will evaluate to zero in Eval.
 	// Otherwise, the depth of the tree will vary and the zero requirement of the DPF is not met.
 	n := d.Lambda
 	if specialPointX.BitLen() > d.Lambda {
@@ -105,7 +101,7 @@ func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.K
 	}
 
 	beta := nonZeroElementY // This is just syntactic sugar to resemble the formal description of the algorithm.
-	if beta.Cmp(d.Curve.BaseField()) == 1 {
+	if beta.Cmp(d.BetaMax) == 1 {
 		return &Key{}, &Key{}, errors.New("the non-zero element is too large for the group order used")
 	}
 
@@ -164,12 +160,12 @@ func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.K
 		tCW[R] = tTmp[ALICE][R] != tTmp[BOB][R] != alphaBool
 
 		CW[i-1] = CorrectionWord{
-			s:  sCW,
-			tl: tCW[L],
-			tr: tCW[R],
+			S:  sCW,
+			Tl: tCW[L],
+			Tr: tCW[R],
 		}
 
-		// Step 12-13: Set next s and t
+		// Step 12-13: Set next S and t
 		for party := range parties {
 			// t_b^(i-1) is the previous control bit
 			tPrevBit := t[party][i-1]
@@ -193,9 +189,9 @@ func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.K
 	res, err := d.genGroupCalc(finalSeedAlice, finalSeedBob, beta, t[BOB][n])
 
 	CW[n] = CorrectionWord{
-		s:  res,
-		tl: false, // Value of tl and tr doesn't matter for the last CW
-		tr: false,
+		S:  res,
+		Tl: false, // Value of Tl and Tr doesn't matter for the last CW
+		Tr: false,
 	}
 
 	// Step 16: Create DPF keys
@@ -239,9 +235,9 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 	t := tkey.ID != 0 // Interpret ID as boolean
 	for i := 1; i <= n; i++ {
 		// Step 3: Parse correction word
-		scw := tkey.CW[i-1].s
-		tcwl := tkey.CW[i-1].tl
-		tcwr := tkey.CW[i-1].tr
+		scw := tkey.CW[i-1].S
+		tcwl := tkey.CW[i-1].Tl
+		tcwr := tkey.CW[i-1].Tr
 
 		// Step 4: Calculate tau
 		tau := dpf.PRG(s, d.PrgOutputLength)
@@ -261,7 +257,7 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 			return nil, err
 		}
 
-		// Step 6-7: Set next s and t
+		// Step 6-7: Set next S and t
 		if a[i-1] == 0 {
 			s = sl
 			t = tl
@@ -272,7 +268,7 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 	}
 	// Step 10: Calculate partial result
 	finalSeed := new(big.Int).SetBytes(s)
-	partialResult, err := d.evalGroupCalc(finalSeed, tkey.CW[n].s, tkey.ID, t)
+	partialResult, err := d.evalGroupCalc(finalSeed, tkey.CW[n].S, tkey.ID, t)
 	if err != nil {
 		return nil, err
 	}
@@ -282,94 +278,79 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 // CombineResults combines the results of two partial evaluations into a single result.
 // It performs simple finite field addition.
 func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
-	var result *big.Int
-	switch d.Curve {
-	case ecc.BN254:
-		y1C := new(bn254_fp.Element).SetBigInt(y1)
-		y2C := new(bn254_fp.Element).SetBigInt(y2)
+	y1C := new(secp256k1fp.Element).SetBigInt(y1)
+	y2C := new(secp256k1fp.Element).SetBigInt(y2)
 
-		res := new(bn254_fp.Element).Add(y1C, y2C)
+	res := new(secp256k1fp.Element).Add(y1C, y2C)
 
-		resBytes := res.Bytes()
-		result = new(big.Int).SetBytes(resBytes[:])
-	}
-
+	resBytes := res.Bytes()
+	result := new(big.Int).SetBytes(resBytes[:])
 	return result
 }
 
-// genGroupCalc calculates the group element for the final correction word.
+// genGroupCalc calculates the group element representation of the final correction word.
 func (d *OpTreeDPF) genGroupCalc(finalSeedAlice, finalSeedBob, beta *big.Int, t bool) ([]byte, error) {
-	var result []byte
-	switch d.Curve {
-	case ecc.BN254:
-		finalSeedAliceC, err := d.ConvertToG128(finalSeedAlice)
-		if err != nil {
-			return nil, err
-		}
-		finalSeedBobC, err := d.ConvertToG128(finalSeedBob)
-		if err != nil {
-			return nil, err
-		}
-
-		betaC := new(bn254_fp.Element).SetBigInt(beta) // No conversion here, as we would lose beta with this
-
-		// Calculate beta - finalSeedAliceC + finalSeedBobC:
-		finalSeedAliceCNeg := new(bn254_fp.Element).Neg(finalSeedAliceC)
-		sumBeta := new(bn254_fp.Element).Add(betaC, finalSeedAliceCNeg)
-		sum := new(bn254_fp.Element).Add(sumBeta, finalSeedBobC)
-
-		res := new(bn254_fp.Element).Set(sum)
-		if t {
-			res.Neg(res)
-		}
-
-		resBytes := res.Bytes() // We need to slice the result to get from [32]byte to generic []byte
-		result = resBytes[:]
-	default:
-		return nil, errors.New("curve not supported")
+	finalSeedAliceC, err := d.convert(finalSeedAlice)
+	if err != nil {
+		return nil, err
 	}
+	finalSeedBobC, err := d.convert(finalSeedBob)
+	if err != nil {
+		return nil, err
+	}
+
+	betaC := new(secp256k1fp.Element).SetBigInt(beta) // No conversion here, as we would lose beta with this
+
+	// Calculate beta - finalSeedAliceC + finalSeedBobC:
+	finalSeedAliceCNeg := new(secp256k1fp.Element).Neg(finalSeedAliceC)
+	sumBeta := new(secp256k1fp.Element).Add(betaC, finalSeedAliceCNeg)
+	sum := new(secp256k1fp.Element).Add(sumBeta, finalSeedBobC)
+
+	res := new(secp256k1fp.Element).Set(sum)
+	if t {
+		res.Neg(res)
+	}
+
+	resBytes := res.Bytes() // We need to slice the result to get from [32]byte to generic []byte
+	result := resBytes[:]
+
 	return result, nil
 }
 
 // evalGroupCalc calculates a partial result from the final seed.
 func (d *OpTreeDPF) evalGroupCalc(finalSeed *big.Int, cw []byte, id uint8, t bool) (*big.Int, error) {
-	var result *big.Int
-	switch d.Curve {
-	case ecc.BN254:
-		finalSeedC, err := d.ConvertToG128(finalSeed)
-		if err != nil {
-			return nil, err
-		}
-		cwC := new(bn254_fp.Element).SetBytes(cw)
-		res := new(bn254_fp.Element).Set(finalSeedC)
-		if t {
-			res.Add(finalSeedC, cwC)
-		}
-		if id == 1 {
-			res.Neg(res)
-		}
-
-		resBytes := res.Bytes()
-		result = new(big.Int).SetBytes(resBytes[:])
-	default:
-		return nil, errors.New("curve not supported")
+	finalSeedC, err := d.convert(finalSeed)
+	if err != nil {
+		return nil, err
 	}
+	cwC := new(secp256k1fp.Element).SetBytes(cw)
+	res := new(secp256k1fp.Element).Set(finalSeedC)
+	if t {
+		res.Add(finalSeedC, cwC)
+	}
+	if id == 1 {
+		res.Neg(res)
+	}
+
+	resBytes := res.Bytes()
+	result := new(big.Int).SetBytes(resBytes[:])
+
 	return result, nil
 }
 
-// ConvertToG128 converts a given big.Int to a group element.
-func (d *OpTreeDPF) ConvertToG128(input *big.Int) (*bn254_fp.Element, error) {
+// convert converts a given big.Int to a group element.
+func (d *OpTreeDPF) convert(input *big.Int) (*secp256k1fp.Element, error) {
 	inputExtended, err := dpf.ExtendBigIntToBitLength(input, d.Lambda)
 	if err != nil {
 		return nil, err
 	}
 	inputExBytes := dpf.ConvertBitArrayToBytes(inputExtended)
 
-	// The BN254 curve has a prime order q, so we an directly return the group element given by the PRG mod q.
+	// The SECP256K1 curve has a prime order q, so we can directly return the group element given by the PRG mod q.
 	prgOutput := dpf.PRG(inputExBytes, d.PrgOutputLength)
 	prgOutputInt := new(big.Int).SetBytes(prgOutput)
 
-	element := new(bn254_fp.Element)
+	element := new(secp256k1fp.Element)
 	element.SetBigInt(prgOutputInt) // Includes Mod operation
 
 	return element, nil

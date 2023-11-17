@@ -47,14 +47,25 @@ func TestTreeDPFKeySerializationAndDeserialization(t *testing.T) {
 }
 
 func TestTreeDPFGenAndEval128(t *testing.T) {
-	lambda := 128
+	testTreeDPFGenAndEval(t, 128)
+}
+
+func TestTreeDPFGenAndEval192(t *testing.T) {
+	testTreeDPFGenAndEval(t, 192)
+}
+
+func TestTreeDPFGenAndEval256(t *testing.T) {
+	testTreeDPFGenAndEval(t, 256)
+}
+
+func testTreeDPFGenAndEval(t *testing.T, lambda int) {
 	d, err := optreedpf.InitFactory(lambda)
 	assert.Nil(t, err)
 
 	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
 	x, _ := rand.Int(rand.Reader, maxInput)
 	wx, _ := rand.Int(rand.Reader, maxInput)
-	y, _ := rand.Int(rand.Reader, d.Curve.BaseField()) // Max input is the base field size
+	y, _ := rand.Int(rand.Reader, d.BetaMax) // Max input is the base field size
 
 	k1, k2, err := d.Gen(x, y)
 	assert.Nil(t, err)
