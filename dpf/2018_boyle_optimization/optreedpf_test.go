@@ -58,6 +58,72 @@ func TestTreeDPFGenAndEval256(t *testing.T) {
 	testTreeDPFGenAndEval(t, 256)
 }
 
+func TestTreeDPFStress(t *testing.T) {
+	lambda := 256
+	d, err := optreedpf.InitFactory(lambda)
+	assert.Nil(t, err)
+
+	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+
+	for i := 0; i < 500; i++ {
+		x, _ := rand.Int(rand.Reader, maxInput)
+		y, _ := rand.Int(rand.Reader, maxInput)
+
+		k1, k2, err := d.Gen(x, y)
+		assert.Nil(t, err)
+
+		res1, err := d.Eval(k1, x)
+		assert.Nil(t, err)
+
+		res2, err := d.Eval(k2, x)
+		assert.Nil(t, err)
+
+		result := d.CombineResults(res1, res2)
+		assert.Equal(t, y, result)
+	}
+}
+
+func TestTreeDPFGenAndEvalToZero(t *testing.T) {
+	lambda := 128
+	d, err := optreedpf.InitFactory(lambda)
+	assert.Nil(t, err)
+
+	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	x, _ := rand.Int(rand.Reader, maxInput)
+	wx1, _ := rand.Int(rand.Reader, maxInput)
+	wx2, _ := rand.Int(rand.Reader, maxInput)
+	wx3, _ := rand.Int(rand.Reader, maxInput)
+	zero := big.NewInt(0)
+
+	y, _ := rand.Int(rand.Reader, maxInput)
+
+	k1, k2, err := d.Gen(x, y)
+	assert.Nil(t, err)
+
+	res1, err := d.Eval(k1, x)
+	assert.Nil(t, err)
+	res2, err := d.Eval(k2, x)
+	assert.Equal(t, y, d.CombineResults(res1, res2))
+
+	res1, err = d.Eval(k1, wx1)
+	assert.Nil(t, err)
+	res2, err = d.Eval(k2, wx1)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, d.CombineResults(res1, res2).Cmp(zero))
+
+	res1, err = d.Eval(k1, wx2)
+	assert.Nil(t, err)
+	res2, err = d.Eval(k2, wx2)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, d.CombineResults(res1, res2).Cmp(zero))
+
+	res1, err = d.Eval(k1, wx3)
+	assert.Nil(t, err)
+	res2, err = d.Eval(k2, wx3)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, d.CombineResults(res1, res2).Cmp(zero))
+}
+
 func testTreeDPFGenAndEval(t *testing.T, lambda int) {
 	d, err := optreedpf.InitFactory(lambda)
 	assert.Nil(t, err)
