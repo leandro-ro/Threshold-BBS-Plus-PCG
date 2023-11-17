@@ -50,6 +50,7 @@ func (k *Key) TypeID() dpf.KeyType {
 // EmptyKey creates and returns a new instance of an empty Key.
 func EmptyKey() *Key {
 	return &Key{
+		ID: 2, // ID is set to != 0 and != 1 to indicate an empty key
 		S:  []byte{},
 		CW: make(map[int]CorrectionWord),
 	}
