@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	secp256k1fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
+	"sync"
 
 	"math/big"
 	"pcg-master-thesis/dpf"
@@ -312,16 +313,66 @@ func (d *OpTreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
 	initT := tkey.ID != 0 // Interpret ID as boolean
 	initS := tkey.S
 
-	res, err := d.traverse(initS, initT, tkey.CW, d.Lambda, tkey.ID)
+	var leafCounter = SafeCounter{}
+	r := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(128)), nil)
+	leafCounter.SetTotal(r)
+
+	res, err := d.traverse(initS, initT, tkey.CW, d.Lambda, tkey.ID, &leafCounter)
 	if err != nil {
 		return nil, err
 	}
 	return res, nil
 }
 
-func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int, partyID uint8) ([]*big.Int, error) {
-	// print i:
-	fmt.Println(i)
+type SafeCounter struct {
+	mu        sync.Mutex
+	count     *big.Int
+	total     *big.Int
+	lastPrint *big.Int
+}
+
+func (c *SafeCounter) Increment() {
+	c.mu.Lock()
+	if c.count == nil {
+		c.count = big.NewInt(0)
+	}
+	c.count = c.count.Add(c.count, big.NewInt(1))
+	c.mu.Unlock()
+}
+
+func (c *SafeCounter) SetTotal(total *big.Int) {
+	c.mu.Lock()
+	c.total = total
+	c.lastPrint = big.NewInt(0)
+	c.mu.Unlock()
+}
+
+func (c *SafeCounter) Progress() (bool, *big.Int, *big.Int, float64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Convert count and total to big.Float
+	floatCount := new(big.Float).SetInt(c.count)
+	floatTotal := new(big.Float).SetInt(c.total)
+
+	// Perform the division
+	quotient := new(big.Float).Quo(floatCount, floatTotal)
+
+	// Convert the quotient to a float64 and multiply by 100 for the percentage
+	percentage, _ := quotient.Mul(quotient, big.NewFloat(100)).Float64()
+
+	delta := new(big.Int).Sub(c.count, c.lastPrint)
+	if delta.Cmp(big.NewInt(100000)) == 1 {
+		c.lastPrint.Set(c.count)
+		return true, c.count, c.total, percentage
+	}
+
+	return false, c.count, c.total, percentage
+}
+
+func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int, partyID uint8, progressCounter *SafeCounter) ([]*big.Int, error) {
+	currentDepth := i - d.Lambda
+
 	if i > 0 {
 		// Parse correction word
 		scw := CW[i-1].S
@@ -346,14 +397,63 @@ func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int,
 			return nil, err
 		}
 
-		left, err := d.traverse(sl, tl, CW, i-1, partyID)
-		if err != nil {
-			return nil, err
+		// Define the depth interval for new threads
+		const threadDepthInterval = 10 // Adjust based on your requirements
+
+		var left, right []*big.Int
+
+		// Function to perform traversal
+		doTraverse := func(s []byte, t bool) ([]*big.Int, error) {
+			return d.traverse(s, t, CW, i-1, partyID, progressCounter)
 		}
-		right, err := d.traverse(sr, tr, CW, i-1, partyID)
-		if err != nil {
-			return nil, err
+
+		// Check if a new thread should be spawned
+		if currentDepth%threadDepthInterval == 0 {
+			leftChan := make(chan []*big.Int)
+			rightChan := make(chan []*big.Int)
+			errChan := make(chan error)
+
+			go func() {
+				result, err := doTraverse(sl, tl)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				leftChan <- result
+			}()
+
+			go func() {
+				result, err := doTraverse(sr, tr)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				rightChan <- result
+			}()
+
+			for i := 0; i < 2; i++ {
+				select {
+				case l := <-leftChan:
+					left = l
+				case r := <-rightChan:
+					right = r
+				case e := <-errChan:
+					if e != nil {
+						return nil, e
+					}
+				}
+			}
+		} else {
+			left, err = doTraverse(sl, tl)
+			if err != nil {
+				return nil, err
+			}
+			right, err = doTraverse(sr, tr)
+			if err != nil {
+				return nil, err
+			}
 		}
+
 		return append(left, right...), nil
 
 	} else { // i = 0
@@ -363,6 +463,16 @@ func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int,
 		if err != nil {
 			return nil, err
 		}
+
+		progressCounter.Increment()
+		if big.NewInt(0).Mod(partialResult, big.NewInt(128)).Cmp(big.NewInt(0)) != 0 {
+			p, current, total, percentage := progressCounter.Progress()
+			if p {
+				fmt.Printf("Processed leaves: %d/%d (%.5f%%)\n", current, total, percentage)
+
+			}
+		}
+
 		return []*big.Int{partialResult}, nil
 	}
 }
