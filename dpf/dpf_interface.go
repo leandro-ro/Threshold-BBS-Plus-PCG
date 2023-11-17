@@ -10,13 +10,15 @@ type KeyType string
 // TreeDPFKeyID defines each key type identifier as a constant.
 // Used to differentiate between different key types in the generic dspf implementation.
 const (
-	TreeDPFKeyID KeyType = "TreeDPFKey"
+	TreeDPFKeyID   KeyType = "TreeDPFKey"
+	OpTreeDPFKeyID KeyType = "OpTreeDPFKey"
 	// ... other key type identifiers
 )
 
 // KeyIDs is a slice of all key type identifiers.
 var KeyIDs = []KeyType{
 	TreeDPFKeyID,
+	OpTreeDPFKeyID,
 	// ... other key type identifiers
 }
 

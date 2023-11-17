@@ -7,7 +7,7 @@ import (
 	"pcg-master-thesis/dpf"
 )
 
-// DSPF is a Distrubuted Sun Of Point Function. It uses multiple DPFs to realize a multipoint function.
+// DSPF is a Distributed Sum Of Point Function. It uses multiple DPFs to realize a multipoint function.
 type DSPF struct {
 	baseDPF dpf.DPF // The base DPF used to construct the DSPF
 }

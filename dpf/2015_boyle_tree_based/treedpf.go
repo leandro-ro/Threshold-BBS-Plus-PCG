@@ -116,15 +116,15 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.Key
 
 	// Initialize nested maps
 	parties := []int{ALICE, BOB}
-	S := initializeMap3LevelsBytes(parties, []int{0, 1}, makeRange(0, n))
-	T := initializeMap3LevelsBool(parties, []int{0, 1}, makeRange(0, n))
+	S := dpf.InitializeMap3LevelsBytes(parties, []int{0, 1}, dpf.MakeRange(0, n))
+	T := dpf.InitializeMap3LevelsBool(parties, []int{0, 1}, dpf.MakeRange(0, n))
 
 	// We use `uint8` for the key of the CW because it directly influences the overall key size.
 	// Alternatively, we could use a compression function to reduce the key size, but that would introduce
 	// additional computational overhead, affecting performance.
 	// Note: Go doesn't provide bit-level storage optimization; it operates at the byte level or higher,
 	// which is why `uint8` is the most space-efficient choice for storing small integer values.
-	CW := initializeMap2LevelsCW([]uint8{ALICE, BOB}, makeRange(0, n-1))
+	CW := initializeMap2LevelsCW([]uint8{ALICE, BOB}, dpf.MakeRange(0, n-1))
 
 	// Create initial seeds (Step 2)
 	rootBitA := int(a[0])
@@ -239,7 +239,7 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.Key
 // Eval evaluates a DPF key at a given point x and returns the result.
 // This method follows the Eval algorithm from the paper.
 func (d *TreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
-	// Use a type assertion to convert dpf.Key to the concrete type *treedpf.Key
+	// Use a type assertion to convert dpf.Key to the concrete key type for this dpf implementation.
 	tkey, ok := key.(*Key)
 	if !ok {
 		return nil, errors.New("the given key is not a tree-based DPF key")
@@ -312,36 +312,6 @@ type CorrectionWord struct {
 	Ct0, Ct1 bool
 }
 
-// initializeMap3LevelsBytes initializes a 3-level nested map with byte slices.
-func initializeMap3LevelsBytes(keys1, keys2, keys3 []int) map[int]map[int]map[int][]byte {
-	m := make(map[int]map[int]map[int][]byte)
-	for _, k1 := range keys1 {
-		m[k1] = make(map[int]map[int][]byte)
-		for _, k2 := range keys2 {
-			m[k1][k2] = make(map[int][]byte)
-			for _, k3 := range keys3 {
-				m[k1][k2][k3] = nil
-			}
-		}
-	}
-	return m
-}
-
-// initializeMap3LevelsBool initializes a 3-level nested map with boolean values.
-func initializeMap3LevelsBool(keys1, keys2, keys3 []int) map[int]map[int]map[int]bool {
-	m := make(map[int]map[int]map[int]bool)
-	for _, k1 := range keys1 {
-		m[k1] = make(map[int]map[int]bool)
-		for _, k2 := range keys2 {
-			m[k1][k2] = make(map[int]bool)
-			for _, k3 := range keys3 {
-				m[k1][k2][k3] = false
-			}
-		}
-	}
-	return m
-}
-
 // initializeMap2LevelsCW initializes a 2-level map with CorrectionWord values.
 func initializeMap2LevelsCW(keys1 []uint8, keys2 []int) map[uint8]map[int]CorrectionWord {
 	m := make(map[uint8]map[int]CorrectionWord)
@@ -352,15 +322,6 @@ func initializeMap2LevelsCW(keys1 []uint8, keys2 []int) map[uint8]map[int]Correc
 		}
 	}
 	return m
-}
-
-// makeRange creates a slice of integers ranging from min to max.
-func makeRange(min, max int) []int {
-	a := make([]int, max-min)
-	for i := range a {
-		a[i] = min + i
-	}
-	return a
 }
 
 // splitPRGOutput splits the output of the PRG into two seeds and two control bits.
