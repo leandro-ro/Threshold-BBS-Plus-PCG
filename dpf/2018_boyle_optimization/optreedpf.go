@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	bn254_fp "github.com/consensys/gnark-crypto/ecc/bn254/fp"
 
@@ -71,7 +70,7 @@ type OpTreeDPF struct {
 // InitFactory initializes a new OpTreeDPF structure with the given security parameter lambda.
 // It returns an error if lambda is not one of the allowed values (128, 192, 256).
 func InitFactory(lambda int) (*OpTreeDPF, error) {
-	// Select the curve
+	// Select the curve. We will use the group order of the curve for the group operations.
 	var curve ecc.ID
 	switch lambda {
 	case 128:
@@ -213,6 +212,8 @@ func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.K
 	return &keyAlice, &keyBob, nil
 }
 
+// Eval evaluates a DPF key at a given point x and returns the result.
+// This method follows the Eval algorithm from the paper.
 func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 	// Use a type assertion to convert dpf.Key to the concrete key type for this dpf implementation.
 	tkey, ok := key.(*Key)
@@ -271,10 +272,6 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 	}
 	// Step 10: Calculate partial result
 	finalSeed := new(big.Int).SetBytes(s)
-
-	// print id and t in one line:
-	fmt.Println("t: ", t, "ID: ", tkey.ID)
-
 	partialResult, err := d.evalGroupCalc(finalSeed, tkey.CW[n].s, tkey.ID, t)
 	if err != nil {
 		return nil, err
@@ -282,16 +279,14 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 	return partialResult, nil
 }
 
+// CombineResults combines the results of two partial evaluations into a single result.
+// It performs simple finite field addition.
 func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
 	var result *big.Int
 	switch d.Curve {
 	case ecc.BN254:
 		y1C := new(bn254_fp.Element).SetBigInt(y1)
 		y2C := new(bn254_fp.Element).SetBigInt(y2)
-
-		// print y1C and y2C:
-		fmt.Println("y1C: ", y1C)
-		fmt.Println("y2C: ", y2C)
 
 		res := new(bn254_fp.Element).Add(y1C, y2C)
 
@@ -302,6 +297,7 @@ func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
 	return result
 }
 
+// genGroupCalc calculates the group element for the final correction word.
 func (d *OpTreeDPF) genGroupCalc(finalSeedAlice, finalSeedBob, beta *big.Int, t bool) ([]byte, error) {
 	var result []byte
 	switch d.Curve {
@@ -314,16 +310,15 @@ func (d *OpTreeDPF) genGroupCalc(finalSeedAlice, finalSeedBob, beta *big.Int, t 
 		if err != nil {
 			return nil, err
 		}
-		// print finalSeedAliceC and finalSeedBobC:
-		fmt.Println("FinalSeedAlice: ", finalSeedAliceC)
-		fmt.Println("FinalSeedBob: ", finalSeedBobC)
 
 		betaC := new(bn254_fp.Element).SetBigInt(beta) // No conversion here, as we would lose beta with this
-		sumSeeds := new(bn254_fp.Element).Add(finalSeedAliceC, finalSeedBobC)
-		betaCsubSeeds := new(bn254_fp.Element).Sub(betaC, sumSeeds)
 
-		res := new(bn254_fp.Element).Set(betaCsubSeeds)
+		// Calculate beta - finalSeedAliceC + finalSeedBobC:
+		finalSeedAliceCNeg := new(bn254_fp.Element).Neg(finalSeedAliceC)
+		sumBeta := new(bn254_fp.Element).Add(betaC, finalSeedAliceCNeg)
+		sum := new(bn254_fp.Element).Add(sumBeta, finalSeedBobC)
 
+		res := new(bn254_fp.Element).Set(sum)
 		if t {
 			res.Neg(res)
 		}
@@ -336,13 +331,12 @@ func (d *OpTreeDPF) genGroupCalc(finalSeedAlice, finalSeedBob, beta *big.Int, t 
 	return result, nil
 }
 
+// evalGroupCalc calculates a partial result from the final seed.
 func (d *OpTreeDPF) evalGroupCalc(finalSeed *big.Int, cw []byte, id uint8, t bool) (*big.Int, error) {
 	var result *big.Int
 	switch d.Curve {
 	case ecc.BN254:
 		finalSeedC, err := d.ConvertToG128(finalSeed)
-		// print final seed c
-		fmt.Println("FinalSeedEval: ", finalSeedC)
 		if err != nil {
 			return nil, err
 		}
@@ -355,9 +349,6 @@ func (d *OpTreeDPF) evalGroupCalc(finalSeed *big.Int, cw []byte, id uint8, t boo
 			res.Neg(res)
 		}
 
-		// print cwc
-		fmt.Println("CW: ", cwC)
-
 		resBytes := res.Bytes()
 		result = new(big.Int).SetBytes(resBytes[:])
 	default:
@@ -366,6 +357,7 @@ func (d *OpTreeDPF) evalGroupCalc(finalSeed *big.Int, cw []byte, id uint8, t boo
 	return result, nil
 }
 
+// ConvertToG128 converts a given big.Int to a group element.
 func (d *OpTreeDPF) ConvertToG128(input *big.Int) (*bn254_fp.Element, error) {
 	inputExtended, err := dpf.ExtendBigIntToBitLength(input, d.Lambda)
 	if err != nil {
