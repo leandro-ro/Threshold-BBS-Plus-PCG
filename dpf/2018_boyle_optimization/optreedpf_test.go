@@ -155,6 +155,27 @@ func testOpTreeDPFGenAndEval(t *testing.T, lambda int) {
 	assert.Equal(t, y, result2)
 }
 
+func TestOpTreeDPFFullEval(t *testing.T) {
+	d, err := optreedpf.InitFactory(128)
+	assert.Nil(t, err)
+
+	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(128)), nil)
+	x, _ := rand.Int(rand.Reader, maxInput)
+	y, _ := rand.Int(rand.Reader, d.BetaMax) // Max input is the base field size
+
+	k1, _, err := d.Gen(x, y)
+	assert.Nil(t, err)
+
+	res1, err := d.FullEval(k1)
+	assert.Nil(t, err)
+
+	//res2, err := d.FullEval(k2)
+	//assert.Nil(t, err)
+
+	assert.NotNil(t, res1)
+	//assert.NotNil(t, res2)
+}
+
 func BenchmarkOpTreeDPFGen128(b *testing.B) { benchmarkOpTreeDPFGen(b, 128) }
 func BenchmarkOpTreeDPFGen192(b *testing.B) { benchmarkOpTreeDPFGen(b, 192) }
 func BenchmarkOpTreeDPFGen256(b *testing.B) { benchmarkOpTreeDPFGen(b, 256) }

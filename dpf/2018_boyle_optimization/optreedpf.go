@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	secp256k1fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 
@@ -296,6 +297,74 @@ func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
 	resBytes := res.Bytes()
 	result := new(big.Int).SetBytes(resBytes[:])
 	return result
+}
+
+func (d *OpTreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
+	// Use a type assertion to convert dpf.Key to the concrete key type for this dpf implementation.
+	tkey, ok := key.(*Key)
+	if !ok {
+		return nil, errors.New("the given key is not a tree-based DPF key")
+	}
+	if tkey.ID > 1 {
+		return nil, errors.New("the given key is invalid as its ID can only be 0 or 1")
+	}
+
+	initT := tkey.ID != 0 // Interpret ID as boolean
+	initS := tkey.S
+
+	res, err := d.traverse(initS, initT, tkey.CW, d.Lambda, tkey.ID)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int, partyID uint8) ([]*big.Int, error) {
+	// print i:
+	fmt.Println(i)
+	if i > 0 {
+		// Parse correction word
+		scw := CW[i-1].S
+		tcwl := CW[i-1].Tl
+		tcwr := CW[i-1].Tr
+
+		// Calculate tau
+		tau := dpf.PRG(s, d.PrgOutputLength)
+		if t {
+			appendedSlices := append(scw, boolToByteSlice(tcwl)...)
+			appendedSlices = append(appendedSlices, scw...)
+			appendedSlices = append(appendedSlices, boolToByteSlice(tcwr)...)
+			if len(appendedSlices) != len(tau) {
+				return nil, errors.New("length of appended slices does not match length of tau")
+			}
+			tau = dpf.XORBytes(tau, appendedSlices)
+		}
+
+		// Step 5: Parse tau as PRG output
+		sl, tl, sr, tr, err := splitPRGOutput(tau, d.Lambda)
+		if err != nil {
+			return nil, err
+		}
+
+		left, err := d.traverse(sl, tl, CW, i-1, partyID)
+		if err != nil {
+			return nil, err
+		}
+		right, err := d.traverse(sr, tr, CW, i-1, partyID)
+		if err != nil {
+			return nil, err
+		}
+		return append(left, right...), nil
+
+	} else { // i = 0
+		// Calculate partial result
+		finalSeed := new(big.Int).SetBytes(s)
+		partialResult, err := d.evalGroupCalc(finalSeed, CW[d.Lambda].S, partyID, t)
+		if err != nil {
+			return nil, err
+		}
+		return []*big.Int{partialResult}, nil
+	}
 }
 
 // genGroupCalc calculates the group element representation of the final correction word.
