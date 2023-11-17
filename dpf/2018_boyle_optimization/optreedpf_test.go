@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestTreeDPFInitialization(t *testing.T) {
+func TestOpTreeDPFInitialization(t *testing.T) {
 	d1, err1 := optreedpf.InitFactory(128)
 	assert.Nil(t, err1)
 	assert.NotNil(t, d1)
@@ -27,7 +27,7 @@ func TestTreeDPFInitialization(t *testing.T) {
 	assert.Nil(t, d4)
 }
 
-func TestTreeDPFKeySerializationAndDeserialization(t *testing.T) {
+func TestOpTreeDPFKeySerializationAndDeserialization(t *testing.T) {
 	d, _ := optreedpf.InitFactory(128)
 
 	x := big.NewInt(5)
@@ -46,19 +46,19 @@ func TestTreeDPFKeySerializationAndDeserialization(t *testing.T) {
 	assert.Equal(t, k1, deserialized)
 }
 
-func TestTreeDPFGenAndEval128(t *testing.T) {
-	testTreeDPFGenAndEval(t, 128)
+func TestOpTreeDPFGenAndEval128(t *testing.T) {
+	testOpTreeDPFGenAndEval(t, 128)
 }
 
-func TestTreeDPFGenAndEval192(t *testing.T) {
-	testTreeDPFGenAndEval(t, 192)
+func TestOpTreeDPFGenAndEval192(t *testing.T) {
+	testOpTreeDPFGenAndEval(t, 192)
 }
 
-func TestTreeDPFGenAndEval256(t *testing.T) {
-	testTreeDPFGenAndEval(t, 256)
+func TestOpTreeDPFGenAndEval256(t *testing.T) {
+	testOpTreeDPFGenAndEval(t, 256)
 }
 
-func TestTreeDPFStress(t *testing.T) {
+func TestOpTreeDPFStress(t *testing.T) {
 	lambda := 256
 	d, err := optreedpf.InitFactory(lambda)
 	assert.Nil(t, err)
@@ -83,7 +83,7 @@ func TestTreeDPFStress(t *testing.T) {
 	}
 }
 
-func TestTreeDPFGenAndEvalToZero(t *testing.T) {
+func TestOpTreeDPFGenAndEvalToZero(t *testing.T) {
 	lambda := 128
 	d, err := optreedpf.InitFactory(lambda)
 	assert.Nil(t, err)
@@ -124,7 +124,7 @@ func TestTreeDPFGenAndEvalToZero(t *testing.T) {
 	assert.Equal(t, 0, d.CombineResults(res1, res2).Cmp(zero))
 }
 
-func testTreeDPFGenAndEval(t *testing.T, lambda int) {
+func testOpTreeDPFGenAndEval(t *testing.T, lambda int) {
 	d, err := optreedpf.InitFactory(lambda)
 	assert.Nil(t, err)
 
@@ -153,4 +153,55 @@ func testTreeDPFGenAndEval(t *testing.T, lambda int) {
 
 	result2 := d.CombineResults(res3, res4)
 	assert.Equal(t, y, result2)
+}
+
+func BenchmarkOpTreeDPFGen128(b *testing.B) { benchmarkOpTreeDPFGen(b, 128) }
+func BenchmarkOpTreeDPFGen192(b *testing.B) { benchmarkOpTreeDPFGen(b, 192) }
+func BenchmarkOpTreeDPFGen256(b *testing.B) { benchmarkOpTreeDPFGen(b, 256) }
+
+func BenchmarkOpTreeDPFEval128(b *testing.B) { benchmarkOpTreeDPFEval(b, 128) }
+func BenchmarkOpTreeDPFEval192(b *testing.B) { benchmarkOpTreeDPFEval(b, 192) }
+func BenchmarkOpTreeDPFEval256(b *testing.B) { benchmarkOpTreeDPFEval(b, 256) }
+
+func benchmarkOpTreeDPFGen(b *testing.B, lambda int) {
+	d, err := optreedpf.InitFactory(lambda)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	x, _ := rand.Int(rand.Reader, maxInput)
+	y, _ := rand.Int(rand.Reader, maxInput)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _, err := d.Gen(x, y)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkOpTreeDPFEval(b *testing.B, lambda int) {
+	d, err := optreedpf.InitFactory(lambda)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	x, _ := rand.Int(rand.Reader, maxInput)
+	y, _ := rand.Int(rand.Reader, maxInput)
+
+	k1, _, err := d.Gen(x, y)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := d.Eval(k1, x)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
