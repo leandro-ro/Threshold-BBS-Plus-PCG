@@ -13,11 +13,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	secp256k1fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
-	"sync"
-
 	"math/big"
 	"pcg-master-thesis/dpf"
 )
@@ -75,13 +72,17 @@ type CorrectionWord struct {
 
 type OpTreeDPF struct {
 	Lambda          int      // Lambda is the security parameter and interpreted in number of bits.
-	PrgOutputLength int      // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
+	prgOutputLength int      // prgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
+	DomainBitLength int      // DomainBitLength is the bit length of the DPFs input domain.
+	AlphaMax        *big.Int // AlphaMax is the maximum value of the special point. It is equal to 2^DomainBitLength - 1.
 	BetaMax         *big.Int // BetaMax is the maximum value of the non-zero element.
 }
 
-// InitFactory initializes a new OpTreeDPF structure with the given security parameter lambda.
-// It returns an error if lambda is not one of the allowed values (128, 192, 256).
-func InitFactory(lambda int) (*OpTreeDPF, error) {
+// InitFactory initializes a new OpTreeDPF structure.
+// lambda is the security parameter and interpreted in number of bits.
+// inputDomain describes the bit length of input domain of the DPF. It limits the non-zero element to be within [0, 2^n - 1].
+// The constructor returns an error if lambda is not one of (128, 192, 256).
+func InitFactory(lambda int, inputDomain int) (*OpTreeDPF, error) {
 	// Select the curve. We will use the group order of the curve for the group operations.
 	var curve ecc.ID
 	switch lambda {
@@ -93,9 +94,14 @@ func InitFactory(lambda int) (*OpTreeDPF, error) {
 
 	prgOutputLength := 2 * (lambda/8 + 1)
 
+	alphaMax := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(inputDomain)), nil)
+	alphaMax.Sub(alphaMax, big.NewInt(1))
+
 	return &OpTreeDPF{
 		Lambda:          lambda,
-		PrgOutputLength: prgOutputLength,
+		prgOutputLength: prgOutputLength,
+		DomainBitLength: inputDomain,
+		AlphaMax:        alphaMax,
 		BetaMax:         new(big.Int).Sub(curve.BaseField(), big.NewInt(1)),
 	}, nil
 }
@@ -103,22 +109,19 @@ func InitFactory(lambda int) (*OpTreeDPF, error) {
 // Gen generates two DPF keys based on a given special point and non-zero element.
 // This method follows the Gen algorithm described in the aforementioned paper.
 func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.Key, dpf.Key, error) {
-	// Choosing n as lambda is a practical consideration. N needs to be constant for all evaluations,
-	// S.t. the all input values besides the special point will evaluate to zero in Eval.
-	// Otherwise, the depth of the tree will vary and the zero requirement of the DPF is not met.
-	n := d.Lambda
-	if specialPointX.BitLen() > d.Lambda {
-		return &Key{}, &Key{}, errors.New("the special point is too large. It must be within [0, 2^Lambda - 1]")
+	n := d.DomainBitLength // Syntactic sugar to resemble the formal description of the algorithm.
+	if specialPointX.Cmp(d.AlphaMax) == 1 {
+		return &Key{}, &Key{}, errors.New("the special point is too large. It must be within the Domain of the DPF")
 
 	}
 
-	beta := nonZeroElementY // This is just syntactic sugar to resemble the formal description of the algorithm.
+	beta := nonZeroElementY // Syntactic sugar to resemble the formal description of the algorithm.
 	if beta.Cmp(d.BetaMax) == 1 {
 		return &Key{}, &Key{}, errors.New("the non-zero element is too large for the group order used")
 	}
 
-	// Extend the bit length of specialPointX to lambda.
-	alpha, err := dpf.ExtendBigIntToBitLength(specialPointX, d.Lambda)
+	// Extend the bit length of specialPointX to DomainBitLength.
+	alpha, err := dpf.ExtendBigIntToBitLength(specialPointX, d.DomainBitLength)
 	if err != nil {
 		return &Key{}, &Key{}, err
 	}
@@ -151,7 +154,7 @@ func (d *OpTreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.K
 	for i := 1; i <= n; i++ {
 		// Step 5: Call PRG
 		for party := range parties {
-			prgOutput := dpf.PRG(s[party][i-1], d.PrgOutputLength)
+			prgOutput := dpf.PRG(s[party][i-1], d.prgOutputLength)
 			sTmp[party][L], tTmp[party][L], sTmp[party][R], tTmp[party][R], err = splitPRGOutput(prgOutput, d.Lambda)
 			if err != nil {
 				return nil, nil, err
@@ -232,12 +235,12 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 		return nil, errors.New("the given key is invalid as its ID can only be 0 or 1")
 	}
 
-	n := d.Lambda
-	if x.BitLen() > d.Lambda {
+	n := d.DomainBitLength
+	if x.Cmp(d.AlphaMax) == 1 {
 		return nil, errors.New("the given point is too large. It must be within [0, 2^Lambda - 1]")
 	}
 
-	a, err := dpf.ExtendBigIntToBitLength(x, n)
+	a, err := dpf.ExtendBigIntToBitLength(x, d.DomainBitLength)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +255,7 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 		tcwr := tkey.CW[i-1].Tr
 
 		// Step 4: Calculate tau
-		tau := dpf.PRG(s, d.PrgOutputLength)
+		tau := dpf.PRG(s, d.prgOutputLength)
 		if t {
 			appendedSlices := append(scw, boolToByteSlice(tcwl)...)
 			appendedSlices = append(appendedSlices, scw...)
@@ -300,6 +303,28 @@ func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
 	return result
 }
 
+// CombineMultipleResults combines the results of two partial evaluations into a single result.
+// It performs finite field addition for each pair of elements in y1 and y2.
+// Returns an error if the lengths of y1 and y2 do not match.
+func (d *OpTreeDPF) CombineMultipleResults(y1, y2 []*big.Int) ([]*big.Int, error) {
+	if len(y1) != len(y2) {
+		return nil, errors.New("y1 and y2 must have the same length")
+	}
+
+	result := make([]*big.Int, len(y1))
+	for i := range y1 {
+		y1C := new(secp256k1fp.Element).SetBigInt(y1[i])
+		y2C := new(secp256k1fp.Element).SetBigInt(y2[i])
+
+		res := new(secp256k1fp.Element).Add(y1C, y2C)
+
+		resBytes := res.Bytes()
+		result[i] = new(big.Int).SetBytes(resBytes[:])
+	}
+
+	return result, nil
+}
+
 func (d *OpTreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
 	// Use a type assertion to convert dpf.Key to the concrete key type for this dpf implementation.
 	tkey, ok := key.(*Key)
@@ -313,64 +338,87 @@ func (d *OpTreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
 	initT := tkey.ID != 0 // Interpret ID as boolean
 	initS := tkey.S
 
-	var leafCounter = SafeCounter{}
-	r := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(128)), nil)
-	leafCounter.SetTotal(r)
+	res, err := d.traverse(initS, initT, tkey.CW, d.DomainBitLength, tkey.ID)
 
-	res, err := d.traverse(initS, initT, tkey.CW, d.Lambda, tkey.ID, &leafCounter)
 	if err != nil {
 		return nil, err
 	}
 	return res, nil
 }
 
-type SafeCounter struct {
-	mu        sync.Mutex
-	count     *big.Int
-	total     *big.Int
-	lastPrint *big.Int
-}
-
-func (c *SafeCounter) Increment() {
-	c.mu.Lock()
-	if c.count == nil {
-		c.count = big.NewInt(0)
+// TODO: Go on from here
+func (d *OpTreeDPF) FullEvalParallel(key dpf.Key) ([]*big.Int, error) {
+	// Use a type assertion to convert dpf.Key to the concrete key type for this dpf implementation.
+	tkey, ok := key.(*Key)
+	if !ok {
+		return nil, errors.New("the given key is not a tree-based DPF key")
 	}
-	c.count = c.count.Add(c.count, big.NewInt(1))
-	c.mu.Unlock()
-}
-
-func (c *SafeCounter) SetTotal(total *big.Int) {
-	c.mu.Lock()
-	c.total = total
-	c.lastPrint = big.NewInt(0)
-	c.mu.Unlock()
-}
-
-func (c *SafeCounter) Progress() (bool, *big.Int, *big.Int, float64) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Convert count and total to big.Float
-	floatCount := new(big.Float).SetInt(c.count)
-	floatTotal := new(big.Float).SetInt(c.total)
-
-	// Perform the division
-	quotient := new(big.Float).Quo(floatCount, floatTotal)
-
-	// Convert the quotient to a float64 and multiply by 100 for the percentage
-	percentage, _ := quotient.Mul(quotient, big.NewFloat(100)).Float64()
-
-	delta := new(big.Int).Sub(c.count, c.lastPrint)
-	if delta.Cmp(big.NewInt(100000)) == 1 {
-		c.lastPrint.Set(c.count)
-		return true, c.count, c.total, percentage
+	if tkey.ID > 1 {
+		return nil, errors.New("the given key is invalid as its ID can only be 0 or 1")
 	}
 
-	return false, c.count, c.total, percentage
+	initT := tkey.ID != 0 // Interpret ID as boolean
+	initS := tkey.S
+
+	res, err := d.traverseParallel(initS, initT, tkey.CW, d.DomainBitLength, tkey.ID)
+
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
-func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int, partyID uint8, progressCounter *SafeCounter) ([]*big.Int, error) {
+// traverse traverses the tree and returns the partial results.
+func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int, partyID uint8) ([]*big.Int, error) {
+	if i > 0 {
+		pos := d.DomainBitLength - i
+		// Parse correction word
+		scw := CW[pos].S
+		tcwl := CW[pos].Tl
+		tcwr := CW[pos].Tr
+
+		// Calculate tau
+		tau := dpf.PRG(s, d.prgOutputLength)
+		if t {
+			appendedSlices := append(scw, boolToByteSlice(tcwl)...)
+			appendedSlices = append(appendedSlices, scw...)
+			appendedSlices = append(appendedSlices, boolToByteSlice(tcwr)...)
+			if len(appendedSlices) != len(tau) {
+				return nil, errors.New("length of appended slices does not match length of tau")
+			}
+			tau = dpf.XORBytes(tau, appendedSlices)
+		}
+
+		// Step 5: Parse tau as PRG output
+		sl, tl, sr, tr, err := splitPRGOutput(tau, d.Lambda)
+		if err != nil {
+			return nil, err
+		}
+
+		left, err := d.traverse(sl, tl, CW, i-1, partyID)
+		if err != nil {
+			return nil, err
+		}
+		right, err := d.traverse(sr, tr, CW, i-1, partyID)
+		if err != nil {
+			return nil, err
+		}
+		return append(left, right...), nil
+
+	} else { // i = 0
+		// Calculate partial result
+		finalSeed := new(big.Int).SetBytes(s)
+		partialResult, err := d.evalGroupCalc(finalSeed, CW[d.DomainBitLength].S, partyID, t)
+		if err != nil {
+			return nil, err
+		}
+		return []*big.Int{partialResult}, nil
+	}
+}
+
+// traverseParallel traverses the tree and returns the partial results.
+// On each few levels, it spawns a new thread for the left and right branch.
+func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord, i int, partyID uint8) ([]*big.Int, error) {
 	currentDepth := i - d.Lambda
 
 	if i > 0 {
@@ -380,7 +428,7 @@ func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int,
 		tcwr := CW[i-1].Tr
 
 		// Calculate tau
-		tau := dpf.PRG(s, d.PrgOutputLength)
+		tau := dpf.PRG(s, d.prgOutputLength)
 		if t {
 			appendedSlices := append(scw, boolToByteSlice(tcwl)...)
 			appendedSlices = append(appendedSlices, scw...)
@@ -398,13 +446,13 @@ func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int,
 		}
 
 		// Define the depth interval for new threads
-		const threadDepthInterval = 10 // Adjust based on your requirements
+		const threadDepthInterval = 4 // Adjust based on your requirements. TODO: Can we realize this dynamically?
 
 		var left, right []*big.Int
 
 		// Function to perform traversal
 		doTraverse := func(s []byte, t bool) ([]*big.Int, error) {
-			return d.traverse(s, t, CW, i-1, partyID, progressCounter)
+			return d.traverseParallel(s, t, CW, i-1, partyID)
 		}
 
 		// Check if a new thread should be spawned
@@ -463,16 +511,6 @@ func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int,
 		if err != nil {
 			return nil, err
 		}
-
-		progressCounter.Increment()
-		if big.NewInt(0).Mod(partialResult, big.NewInt(128)).Cmp(big.NewInt(0)) != 0 {
-			p, current, total, percentage := progressCounter.Progress()
-			if p {
-				fmt.Printf("Processed leaves: %d/%d (%.5f%%)\n", current, total, percentage)
-
-			}
-		}
-
 		return []*big.Int{partialResult}, nil
 	}
 }
@@ -536,7 +574,7 @@ func (d *OpTreeDPF) convert(input *big.Int) (*secp256k1fp.Element, error) {
 	inputExBytes := dpf.ConvertBitArrayToBytes(inputExtended)
 
 	// The SECP256K1 curve has a prime order q, so we can directly return the group element given by the PRG mod q.
-	prgOutput := dpf.PRG(inputExBytes, d.PrgOutputLength)
+	prgOutput := dpf.PRG(inputExBytes, d.prgOutputLength)
 	prgOutputInt := new(big.Int).SetBytes(prgOutput)
 
 	element := new(secp256k1fp.Element)

@@ -116,11 +116,11 @@ func TestDSPFWithTreeDPF(t *testing.T) {
 }
 
 func TestDSPFWithOpTreeDPF(t *testing.T) {
-	treeDPF128, err := optreedpf.InitFactory(128)
+	treedpf12864, err := optreedpf.InitFactory(128, 64)
 	if err != nil {
 		t.Errorf("InitFactory returned an unexpected error: %v", err)
 	}
-	dspf := NewDSPFFactory(treeDPF128)
+	dspf := NewDSPFFactory(treedpf12864)
 	sp1 := big.NewInt(1)
 	nz1 := big.NewInt(3)
 
