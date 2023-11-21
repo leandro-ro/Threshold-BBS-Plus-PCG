@@ -88,3 +88,27 @@ func (d *DSPF) CombineResults(y1 []*big.Int, y2 []*big.Int) (*big.Int, error) {
 	}
 	return combined, nil
 }
+
+func (d *DSPF) FullEval(dspfKey Key) ([][]*big.Int, error) {
+	ys := make([][]*big.Int, len(dspfKey.DPFKeys))
+	for i, key := range dspfKey.DPFKeys {
+		y, err := d.baseDPF.FullEval(key)
+		if err != nil {
+			return nil, err
+		}
+		ys[i] = y
+	}
+	return ys, nil
+}
+
+func (d *DSPF) FullEvalFast(dspfKey Key) ([][]*big.Int, error) {
+	ys := make([][]*big.Int, len(dspfKey.DPFKeys))
+	for i, key := range dspfKey.DPFKeys {
+		y, err := d.baseDPF.FullEvalFast(key)
+		if err != nil {
+			return nil, err
+		}
+		ys[i] = y
+	}
+	return ys, nil
+}

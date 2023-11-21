@@ -306,6 +306,14 @@ func (d *TreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
 	return sum
 }
 
+func (d *TreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (d *TreeDPF) FullEvalFast(key dpf.Key) ([]*big.Int, error) {
+	return nil, errors.New("not implemented")
+}
+
 // CorrectionWord holds the correction words and bits for the DPF key.
 type CorrectionWord struct {
 	Cs0, Cs1 []byte

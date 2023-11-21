@@ -33,5 +33,7 @@ type Key interface {
 type DPF interface {
 	Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (Key, Key, error)
 	Eval(key Key, x *big.Int) (*big.Int, error)
+	FullEval(key Key) ([]*big.Int, error)
+	FullEvalFast(key Key) ([]*big.Int, error)
 	CombineResults(y1 *big.Int, y2 *big.Int) *big.Int
 }
