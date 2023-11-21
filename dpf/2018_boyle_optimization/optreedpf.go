@@ -325,6 +325,7 @@ func (d *OpTreeDPF) CombineMultipleResults(y1, y2 []*big.Int) ([]*big.Int, error
 	return result, nil
 }
 
+// FullEval evaluates a DPF key at all points in the domain and returns the results of each point in an array.
 func (d *OpTreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
 	// Use a type assertion to convert dpf.Key to the concrete key type for this dpf implementation.
 	tkey, ok := key.(*Key)
@@ -346,8 +347,9 @@ func (d *OpTreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
 	return res, nil
 }
 
-// TODO: Go on from here
-func (d *OpTreeDPF) FullEvalParallel(key dpf.Key) ([]*big.Int, error) {
+// FullEvalFast evaluates a DPF key at all points in the domain and returns the results of each point in an array.
+// It uses parallelization to speed up the evaluation.
+func (d *OpTreeDPF) FullEvalFast(key dpf.Key) ([]*big.Int, error) {
 	// Use a type assertion to convert dpf.Key to the concrete key type for this dpf implementation.
 	tkey, ok := key.(*Key)
 	if !ok {
@@ -419,13 +421,12 @@ func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int,
 // traverseParallel traverses the tree and returns the partial results.
 // On each few levels, it spawns a new thread for the left and right branch.
 func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord, i int, partyID uint8) ([]*big.Int, error) {
-	currentDepth := i - d.Lambda
-
 	if i > 0 {
+		depth := d.DomainBitLength - i
 		// Parse correction word
-		scw := CW[i-1].S
-		tcwl := CW[i-1].Tl
-		tcwr := CW[i-1].Tr
+		scw := CW[depth].S
+		tcwl := CW[depth].Tl
+		tcwr := CW[depth].Tr
 
 		// Calculate tau
 		tau := dpf.PRG(s, d.prgOutputLength)
@@ -445,8 +446,20 @@ func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord
 			return nil, err
 		}
 
-		// Define the depth interval for new threads
-		const threadDepthInterval = 4 // Adjust based on your requirements. TODO: Can we realize this dynamically?
+		// Define the depth interval for new threads (as otherwise too many threads are created)
+		// The switch case is based on the results from the empirical evaluation.
+		// We focus on the 20 and 21 bit domain, as these are the most relevant ones for our PCG.
+		// The values may depend on the processor used. The values were obtained on an Apple M1 Max with 10 cores.
+		// The more cores the processor has, the lower the interval can be chosen as more threads can be efficiently handled simultaneously.
+		var threadDepthInterval int
+		switch d.DomainBitLength {
+		case 20, 21:
+			threadDepthInterval = 7
+		case 22:
+			threadDepthInterval = 6
+		default:
+			threadDepthInterval = 10 // This implies that no threads are spawned for all domains < 10 bits (as this is inefficient)
+		}
 
 		var left, right []*big.Int
 
@@ -456,7 +469,7 @@ func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord
 		}
 
 		// Check if a new thread should be spawned
-		if currentDepth%threadDepthInterval == 0 {
+		if depth%threadDepthInterval == 0 {
 			leftChan := make(chan []*big.Int)
 			rightChan := make(chan []*big.Int)
 			errChan := make(chan error)
@@ -507,7 +520,7 @@ func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord
 	} else { // i = 0
 		// Calculate partial result
 		finalSeed := new(big.Int).SetBytes(s)
-		partialResult, err := d.evalGroupCalc(finalSeed, CW[d.Lambda].S, partyID, t)
+		partialResult, err := d.evalGroupCalc(finalSeed, CW[d.DomainBitLength].S, partyID, t)
 		if err != nil {
 			return nil, err
 		}

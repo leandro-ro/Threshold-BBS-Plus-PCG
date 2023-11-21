@@ -204,36 +204,83 @@ func testOpTreeDPFFullEval(t *testing.T, lambda int, domain int) {
 	assert.Equal(t, 1, nonZeroCount, "There should be exactly one non-zero value in the result")
 }
 
+func TestOpTreeDPFFullEvalFast128(t *testing.T) {
+	testOpTreeDPFFullEvalParallel(t, 128, 10) // Using small domains here as FullEval is computationally expensive
+}
+
+func TestOpTreeDPFFullEvalFast192(t *testing.T) {
+	testOpTreeDPFFullEvalParallel(t, 192, 12) // Using small domains here as FullEval is computationally expensive
+}
+
+func TestOpTreeDPFFullEvalFast256(t *testing.T) {
+	testOpTreeDPFFullEvalParallel(t, 256, 14) // Using small domains here as FullEval is computationally expensive
+}
+
+func testOpTreeDPFFullEvalParallel(t *testing.T, lambda int, domain int) {
+	d, err := optreedpf.InitFactory(lambda, domain)
+	assert.Nil(t, err)
+
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	x, _ := rand.Int(rand.Reader, maxInputX)
+	y, _ := rand.Int(rand.Reader, d.BetaMax) // Max input is the base field size
+
+	k1, k2, err := d.Gen(x, y)
+	assert.Nil(t, err)
+
+	res1, err := d.FullEvalFast(k1)
+	assert.Nil(t, err)
+
+	res2, err := d.FullEvalFast(k2)
+	assert.Nil(t, err)
+
+	res, err := d.CombineMultipleResults(res1, res2)
+	assert.Nil(t, err)
+
+	// Check that only one element is not zero and is equal to y
+	nonZeroCount := 0
+	for _, val := range res {
+		if val.Cmp(big.NewInt(0)) != 0 { // val is not zero
+			nonZeroCount++
+			assert.Equal(t, y, val, "The non-zero value should be equal to y")
+		}
+	}
+
+	assert.Equal(t, 1, nonZeroCount, "There should be exactly one non-zero value in the result")
+}
+
 // Benchmarks:
-func BenchmarkOpTreeDPFGen128_32(b *testing.B)  { benchmarkOpTreeDPFGen(b, 128, 32) }
-func BenchmarkOpTreeDPFGen128_64(b *testing.B)  { benchmarkOpTreeDPFGen(b, 128, 64) }
-func BenchmarkOpTreeDPFGen128_128(b *testing.B) { benchmarkOpTreeDPFGen(b, 128, 128) }
+func BenchmarkOpTreeDPFGen128_n32(b *testing.B)  { benchmarkOpTreeDPFGen(b, 128, 32) }
+func BenchmarkOpTreeDPFGen128_n64(b *testing.B)  { benchmarkOpTreeDPFGen(b, 128, 64) }
+func BenchmarkOpTreeDPFGen128_n128(b *testing.B) { benchmarkOpTreeDPFGen(b, 128, 128) }
 
-func BenchmarkOpTreeDPFGen192_32(b *testing.B)  { benchmarkOpTreeDPFGen(b, 192, 32) }
-func BenchmarkOpTreeDPFGen192_64(b *testing.B)  { benchmarkOpTreeDPFGen(b, 192, 64) }
-func BenchmarkOpTreeDPFGen192_128(b *testing.B) { benchmarkOpTreeDPFGen(b, 192, 128) }
+func BenchmarkOpTreeDPFGen192_n32(b *testing.B)  { benchmarkOpTreeDPFGen(b, 192, 32) }
+func BenchmarkOpTreeDPFGen192_n64(b *testing.B)  { benchmarkOpTreeDPFGen(b, 192, 64) }
+func BenchmarkOpTreeDPFGen192_n128(b *testing.B) { benchmarkOpTreeDPFGen(b, 192, 128) }
 
-func BenchmarkOpTreeDPFGen256_32(b *testing.B)  { benchmarkOpTreeDPFGen(b, 256, 32) }
-func BenchmarkOpTreeDPFGen256_64(b *testing.B)  { benchmarkOpTreeDPFGen(b, 256, 64) }
-func BenchmarkOpTreeDPFGen256_128(b *testing.B) { benchmarkOpTreeDPFGen(b, 256, 128) }
+func BenchmarkOpTreeDPFGen256_n32(b *testing.B)  { benchmarkOpTreeDPFGen(b, 256, 32) }
+func BenchmarkOpTreeDPFGen256_n64(b *testing.B)  { benchmarkOpTreeDPFGen(b, 256, 64) }
+func BenchmarkOpTreeDPFGen256_n128(b *testing.B) { benchmarkOpTreeDPFGen(b, 256, 128) }
 
-func BenchmarkOpTreeDPFEval128_32(b *testing.B)  { benchmarkOpTreeDPFEval(b, 128, 32) }
-func BenchmarkOpTreeDPFEval128_64(b *testing.B)  { benchmarkOpTreeDPFEval(b, 128, 64) }
-func BenchmarkOpTreeDPFEval128_128(b *testing.B) { benchmarkOpTreeDPFEval(b, 128, 128) }
+func BenchmarkOpTreeDPFEval128_n32(b *testing.B)  { benchmarkOpTreeDPFEval(b, 128, 32) }
+func BenchmarkOpTreeDPFEval128_n64(b *testing.B)  { benchmarkOpTreeDPFEval(b, 128, 64) }
+func BenchmarkOpTreeDPFEval128_n128(b *testing.B) { benchmarkOpTreeDPFEval(b, 128, 128) }
 
-func BenchmarkOpTreeDPFEval192_32(b *testing.B)  { benchmarkOpTreeDPFEval(b, 192, 32) }
-func BenchmarkOpTreeDPFEval192_64(b *testing.B)  { benchmarkOpTreeDPFEval(b, 192, 64) }
-func BenchmarkOpTreeDPFEval192_128(b *testing.B) { benchmarkOpTreeDPFEval(b, 192, 128) }
+func BenchmarkOpTreeDPFEval192_n32(b *testing.B)  { benchmarkOpTreeDPFEval(b, 192, 32) }
+func BenchmarkOpTreeDPFEval192_n64(b *testing.B)  { benchmarkOpTreeDPFEval(b, 192, 64) }
+func BenchmarkOpTreeDPFEval192_n128(b *testing.B) { benchmarkOpTreeDPFEval(b, 192, 128) }
 
-func BenchmarkOpTreeDPFEval256_32(b *testing.B)  { benchmarkOpTreeDPFEval(b, 256, 32) }
-func BenchmarkOpTreeDPFEval256_64(b *testing.B)  { benchmarkOpTreeDPFEval(b, 256, 64) }
-func BenchmarkOpTreeDPFEval256_128(b *testing.B) { benchmarkOpTreeDPFEval(b, 256, 128) }
+func BenchmarkOpTreeDPFEval256_n32(b *testing.B)  { benchmarkOpTreeDPFEval(b, 256, 32) }
+func BenchmarkOpTreeDPFEval256_n64(b *testing.B)  { benchmarkOpTreeDPFEval(b, 256, 64) }
+func BenchmarkOpTreeDPFEval256_n128(b *testing.B) { benchmarkOpTreeDPFEval(b, 256, 128) }
 
-func BenchmarkOpTreeDPFFullEval128_10(b *testing.B) { benchmarkOpTreeDPFFullEval(b, 128, 10) }
-func BenchmarkOpTreeDPFFullEval128_20(b *testing.B) { benchmarkOpTreeDPFFullEval(b, 128, 20) }
+func BenchmarkOpTreeDPFFullEval128_n10(b *testing.B)     { benchmarkOpTreeDPFFullEval(b, 128, 10) }
+func BenchmarkOpTreeDPFFullEvalFast128_n10(b *testing.B) { benchmarkOpTreeDPFFullEvalFast(b, 128, 10) }
 
-func BenchmarkOpTreeDPFFullEval256_10(b *testing.B) { benchmarkOpTreeDPFFullEval(b, 256, 10) }
-func BenchmarkOpTreeDPFFullEval256_20(b *testing.B) { benchmarkOpTreeDPFFullEval(b, 256, 20) }
+func BenchmarkOpTreeDPFFullEval128_n20(b *testing.B)     { benchmarkOpTreeDPFFullEval(b, 128, 20) }
+func BenchmarkOpTreeDPFFullEvalFast128_n20(b *testing.B) { benchmarkOpTreeDPFFullEvalFast(b, 128, 20) }
+
+func BenchmarkOpTreeDPFFullEval128_n21(b *testing.B)     { benchmarkOpTreeDPFFullEval(b, 128, 21) }
+func BenchmarkOpTreeDPFFullEvalFast128_n21(b *testing.B) { benchmarkOpTreeDPFFullEvalFast(b, 128, 21) }
 
 func benchmarkOpTreeDPFGen(b *testing.B, lambda, domain int) {
 	d, err := optreedpf.InitFactory(lambda, domain)
@@ -299,6 +346,31 @@ func benchmarkOpTreeDPFFullEval(b *testing.B, lambda, domain int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := d.FullEval(k1)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkOpTreeDPFFullEvalFast(b *testing.B, lambda, domain int) {
+	d, err := optreedpf.InitFactory(lambda, domain)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	maxInputY := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	x, _ := rand.Int(rand.Reader, maxInputX)
+	y, _ := rand.Int(rand.Reader, maxInputY)
+
+	k1, _, err := d.Gen(x, y)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := d.FullEvalFast(k1)
 		if err != nil {
 			b.Fatal(err)
 		}
