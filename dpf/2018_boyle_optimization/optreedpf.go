@@ -290,14 +290,12 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 // CombineResults combines the results of two partial evaluations into a single result.
 // It performs simple finite field addition.
 func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
-	y1C := new(secp256k1fp.Element).SetBigInt(y1)
-	y2C := new(secp256k1fp.Element).SetBigInt(y2)
+	y1C := bls12381.NewFr().FromBytes(y1.Bytes())
+	y2C := bls12381.NewFr().FromBytes(y2.Bytes())
 
-	res := new(secp256k1fp.Element).Add(y1C, y2C)
-
-	resBytes := res.Bytes()
-	result := new(big.Int).SetBytes(resBytes[:])
-	return result
+	res := bls12381.NewFr()
+	res.Add(y1C, y2C)
+	return res.ToBig()
 }
 
 // CombineMultipleResults combines the results of two partial evaluations into a single result.
@@ -579,9 +577,7 @@ func (d *OpTreeDPF) convert(input *big.Int) (*bls12381.Fr, error) {
 
 	// BLS12-381 has a prime order, so we can directly return the group element given by the PRG mod q according to the formal definition.
 	prgOutput := dpf.PRG(inputExBytes, d.prgOutputLength)
-	prgOutputInt := new(big.Int).SetBytes(prgOutput)
-
-	element := bls12381.NewFr().FromBytes(prgOutputInt.Bytes())
+	element := bls12381.NewFr().FromBytes(prgOutput)
 
 	return element, nil
 }

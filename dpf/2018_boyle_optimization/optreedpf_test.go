@@ -65,11 +65,10 @@ func TestOpTreeDPFStress(t *testing.T) {
 	assert.Nil(t, err)
 
 	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
-	maxInputY := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
 
 	for i := 0; i < 500; i++ {
 		x, _ := rand.Int(rand.Reader, maxInputX)
-		y, _ := rand.Int(rand.Reader, maxInputY)
+		y, _ := rand.Int(rand.Reader, d.BetaMax)
 
 		k1, k2, err := d.Gen(x, y)
 		assert.Nil(t, err)
