@@ -88,3 +88,30 @@ func (d *DSPF) CombineResults(y1 []*big.Int, y2 []*big.Int) (*big.Int, error) {
 	}
 	return combined, nil
 }
+
+// FullEval evaluates each DPF of the DSPF on all points in the domain.
+func (d *DSPF) FullEval(dspfKey Key) ([][]*big.Int, error) {
+	ys := make([][]*big.Int, len(dspfKey.DPFKeys))
+	for i, key := range dspfKey.DPFKeys {
+		y, err := d.baseDPF.FullEval(key)
+		if err != nil {
+			return nil, err
+		}
+		ys[i] = y
+	}
+	return ys, nil
+}
+
+// FullEvalFast evaluates each DPF of the DSPF on all points in the domain.
+// It uses the parallelized FullEval method of the base DPF and is especially suited to speed up evaluation of larger domains.
+func (d *DSPF) FullEvalFast(dspfKey Key) ([][]*big.Int, error) {
+	ys := make([][]*big.Int, len(dspfKey.DPFKeys))
+	for i, key := range dspfKey.DPFKeys {
+		y, err := d.baseDPF.FullEvalFast(key)
+		if err != nil {
+			return nil, err
+		}
+		ys[i] = y
+	}
+	return ys, nil
+}

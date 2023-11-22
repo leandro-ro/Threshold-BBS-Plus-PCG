@@ -1,14 +1,16 @@
 package dspf
 
 import (
+	"crypto/rand"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"math/big"
 	treedpf "pcg-master-thesis/dpf/2015_boyle_tree_based"
 	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
 	"testing"
 )
 
-func TestGenMismatchedLengths(t *testing.T) {
+func TestDSPFGenMismatchedLengths(t *testing.T) {
 	var dspfInstance DSPF
 	specialPoints := []*big.Int{big.NewInt(1)}
 	nonZeroElements := []*big.Int{big.NewInt(2), big.NewInt(3)}
@@ -19,7 +21,7 @@ func TestGenMismatchedLengths(t *testing.T) {
 	}
 }
 
-func TestGenNilValues(t *testing.T) {
+func TestDSPFGenNilValues(t *testing.T) {
 	var dspfInstance DSPF
 	specialPoints := []*big.Int{nil}
 	nonZeroElements := []*big.Int{big.NewInt(2)}
@@ -30,7 +32,7 @@ func TestGenNilValues(t *testing.T) {
 	}
 }
 
-func TestGenDuplicateSpecialPoints(t *testing.T) {
+func TestDSPFGenDuplicateSpecialPoints(t *testing.T) {
 	var dspfInstance DSPF
 	specialPoint := big.NewInt(1)
 	specialPoints := []*big.Int{specialPoint, specialPoint}
@@ -42,7 +44,7 @@ func TestGenDuplicateSpecialPoints(t *testing.T) {
 	}
 }
 
-func TestDSPFWithTreeDPF(t *testing.T) {
+func TestDSPFGenEvalTreeDPF(t *testing.T) {
 	treeDPF128, err := treedpf.InitFactory(128)
 	if err != nil {
 		t.Errorf("InitFactory returned an unexpected error: %v", err)
@@ -115,12 +117,12 @@ func TestDSPFWithTreeDPF(t *testing.T) {
 	}
 }
 
-func TestDSPFWithOpTreeDPF(t *testing.T) {
-	treeDPF128, err := optreedpf.InitFactory(128)
+func TestDSPFGenEvalOpTreeDPF(t *testing.T) {
+	treedpf12864, err := optreedpf.InitFactory(128, 64)
 	if err != nil {
 		t.Errorf("InitFactory returned an unexpected error: %v", err)
 	}
-	dspf := NewDSPFFactory(treeDPF128)
+	dspf := NewDSPFFactory(treedpf12864)
 	sp1 := big.NewInt(1)
 	nz1 := big.NewInt(3)
 
@@ -185,5 +187,204 @@ func TestDSPFWithOpTreeDPF(t *testing.T) {
 	// Expect result to be non-zero
 	if result.Cmp(nz2) != 0 {
 		t.Errorf("CombineResults did not return the correct result")
+	}
+}
+
+func TestDSPFFullEvalOpTreeDPF(t *testing.T) {
+	domain := 10
+	treedpf128n10, err := optreedpf.InitFactory(128, domain) // Small domain size for testing
+	if err != nil {
+		t.Errorf("InitFactory returned an unexpected error: %v", err)
+	}
+	dspf := NewDSPFFactory(treedpf128n10)
+
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+
+	tCount := 6 // Number of random points and elements to generate
+	specialPoints := make([]*big.Int, tCount)
+	nonZeroElements := make([]*big.Int, tCount)
+
+	for i := 0; i < tCount; i++ {
+		x, err := rand.Int(rand.Reader, maxInputX)
+		if err != nil {
+			t.Errorf("Error generating random x: %v", err)
+		}
+		specialPoints[i] = x
+
+		y, err := rand.Int(rand.Reader, treedpf128n10.BetaMax) // Max input is the base field size
+		if err != nil {
+			t.Errorf("Error generating random y: %v", err)
+		}
+		nonZeroElements[i] = y
+	}
+
+	k1, k2, err := dspf.Gen(specialPoints, nonZeroElements)
+	if err != nil {
+		return
+	}
+
+	ys1, err := dspf.FullEval(k1)
+	if err != nil {
+		t.Errorf("Eval returned an unexpected error: %v", err)
+	}
+
+	ys2, err := dspf.FullEval(k2)
+	if err != nil {
+		t.Errorf("Eval returned an unexpected error: %v", err)
+	}
+
+	for i := 0; i < tCount; i++ {
+		res, err := dspf.CombineResults(ys1[i], ys2[i])
+		if err != nil {
+			t.Errorf("CombineResults returned an unexpected error: %v", err)
+		}
+
+		assert.Equal(t, 0, res.Cmp(nonZeroElements[i]))
+	}
+}
+
+func TestDSPFFullEvalFastOpTreeDPF(t *testing.T) {
+	domain := 10
+	treedpf128n10, err := optreedpf.InitFactory(128, domain) // Small domain size for testing
+	if err != nil {
+		t.Errorf("InitFactory returned an unexpected error: %v", err)
+	}
+	dspf := NewDSPFFactory(treedpf128n10)
+
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+
+	tCount := 6 // Number of random points and elements to generate
+	specialPoints := make([]*big.Int, tCount)
+	nonZeroElements := make([]*big.Int, tCount)
+
+	for i := 0; i < tCount; i++ {
+		x, err := rand.Int(rand.Reader, maxInputX)
+		if err != nil {
+			t.Errorf("Error generating random x: %v", err)
+		}
+		specialPoints[i] = x
+
+		y, err := rand.Int(rand.Reader, treedpf128n10.BetaMax) // Max input is the base field size
+		if err != nil {
+			t.Errorf("Error generating random y: %v", err)
+		}
+		nonZeroElements[i] = y
+	}
+
+	k1, k2, err := dspf.Gen(specialPoints, nonZeroElements)
+	if err != nil {
+		return
+	}
+
+	ys1, err := dspf.FullEvalFast(k1)
+	if err != nil {
+		t.Errorf("Eval returned an unexpected error: %v", err)
+	}
+
+	ys2, err := dspf.FullEvalFast(k2)
+	if err != nil {
+		t.Errorf("Eval returned an unexpected error: %v", err)
+	}
+
+	for i := 0; i < tCount; i++ {
+		res, err := dspf.CombineResults(ys1[i], ys2[i])
+		if err != nil {
+			t.Errorf("CombineResults returned an unexpected error: %v", err)
+		}
+
+		assert.Equal(t, 0, res.Cmp(nonZeroElements[i]))
+	}
+}
+
+// Benchmarks:
+func BenchmarkOpTreeDSPFFullEval128_n10_t6(b *testing.B) { benchmarkOpTreeDSPFFullEval(b, 128, 10, 6) }
+func BenchmarkOpTreeDSPFFullEval128_n15_t6(b *testing.B) { benchmarkOpTreeDSPFFullEval(b, 128, 15, 6) }
+
+// The settings below are suitable for the PCG (e.g. (c,t) = (4, 16) or (8, 5))
+func BenchmarkOpTreeDSPFFullEvalFast128_n20_t5(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 20, 5)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n20_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 20, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n21_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 21, 16)
+}
+
+func benchmarkOpTreeDSPFFullEval(b *testing.B, lambda, domain, t int) {
+	d, err := optreedpf.InitFactory(lambda, domain)
+	if err != nil {
+		b.Fatal(err)
+	}
+	dspf := NewDSPFFactory(d)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+
+	specialPoints := make([]*big.Int, t)
+	nonZeroElements := make([]*big.Int, t)
+
+	for i := 0; i < t; i++ {
+		x, err := rand.Int(rand.Reader, maxInputX)
+		if err != nil {
+			b.Errorf("Error generating random x: %v", err)
+		}
+		specialPoints[i] = x
+
+		y, err := rand.Int(rand.Reader, d.BetaMax) // Max input is the base field size
+		if err != nil {
+			b.Errorf("Error generating random y: %v", err)
+		}
+		nonZeroElements[i] = y
+	}
+
+	k1, _, err := dspf.Gen(specialPoints, nonZeroElements)
+	if err != nil {
+		return
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := dspf.FullEval(k1)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkOpTreeDSPFFullEvalFast(b *testing.B, lambda, domain, t int) {
+	d, err := optreedpf.InitFactory(lambda, domain)
+	if err != nil {
+		b.Fatal(err)
+	}
+	dspf := NewDSPFFactory(d)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+
+	specialPoints := make([]*big.Int, t)
+	nonZeroElements := make([]*big.Int, t)
+
+	for i := 0; i < t; i++ {
+		x, err := rand.Int(rand.Reader, maxInputX)
+		if err != nil {
+			b.Errorf("Error generating random x: %v", err)
+		}
+		specialPoints[i] = x
+
+		y, err := rand.Int(rand.Reader, d.BetaMax) // Max input is the base field size
+		if err != nil {
+			b.Errorf("Error generating random y: %v", err)
+		}
+		nonZeroElements[i] = y
+	}
+
+	k1, _, err := dspf.Gen(specialPoints, nonZeroElements)
+	if err != nil {
+		return
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := dspf.FullEvalFast(k1)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
