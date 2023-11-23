@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
-	secp256k1fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
 	"pcg-master-thesis/dpf"
@@ -308,13 +307,7 @@ func (d *OpTreeDPF) CombineMultipleResults(y1, y2 []*big.Int) ([]*big.Int, error
 
 	result := make([]*big.Int, len(y1))
 	for i := range y1 {
-		y1C := new(secp256k1fp.Element).SetBigInt(y1[i])
-		y2C := new(secp256k1fp.Element).SetBigInt(y2[i])
-
-		res := new(secp256k1fp.Element).Add(y1C, y2C)
-
-		resBytes := res.Bytes()
-		result[i] = new(big.Int).SetBytes(resBytes[:])
+		result[i] = d.CombineResults(y1[i], y2[i])
 	}
 
 	return result, nil
