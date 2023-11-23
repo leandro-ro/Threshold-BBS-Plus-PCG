@@ -91,7 +91,10 @@ func InitFactory(lambda int, inputDomain int) (*OpTreeDPF, error) {
 
 	alphaMax := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(inputDomain)), nil)
 	alphaMax.Sub(alphaMax, big.NewInt(1))
-	betaMax, _ := new(big.Int).SetString("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001", 16) // This is the group order of the BLS12-381 curve
+
+	// TODO: This is the modulus of the scalar field (q), as used by the Fr implementation. Check if this is correct.
+	betaMax, _ := new(big.Int).SetString("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001", 16)
+	betaMax.Sub(betaMax, big.NewInt(1))
 
 	return &OpTreeDPF{
 		Lambda:          lambda,
