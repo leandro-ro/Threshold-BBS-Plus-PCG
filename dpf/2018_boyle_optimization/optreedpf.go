@@ -13,8 +13,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
-	"github.com/consensys/gnark-crypto/ecc"
-	secp256k1fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
+	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
 	"pcg-master-thesis/dpf"
 )
@@ -83,13 +82,9 @@ type OpTreeDPF struct {
 // inputDomain describes the bit length of input domain of the DPF. It limits the non-zero element to be within [0, 2^n - 1].
 // The constructor returns an error if lambda is not one of (128, 192, 256).
 func InitFactory(lambda int, inputDomain int) (*OpTreeDPF, error) {
-	// Select the curve. We will use the group order of the curve for the group operations.
-	var curve ecc.ID
-	switch lambda {
-	case 128, 192, 256:
-		curve = ecc.SECP256K1 // This limits the non-zero elm to 256 bits
-	default:
+	if lambda != 128 && lambda != 192 && lambda != 256 {
 		return nil, errors.New("lambda must be 128, 192, or 256")
+
 	}
 
 	prgOutputLength := 2 * (lambda/8 + 1)
@@ -97,12 +92,16 @@ func InitFactory(lambda int, inputDomain int) (*OpTreeDPF, error) {
 	alphaMax := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(inputDomain)), nil)
 	alphaMax.Sub(alphaMax, big.NewInt(1))
 
+	// TODO: This is the modulus of the scalar field (q), as used by the Fr implementation. Check if this is correct.
+	betaMax, _ := new(big.Int).SetString("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001", 16)
+	betaMax.Sub(betaMax, big.NewInt(1))
+
 	return &OpTreeDPF{
 		Lambda:          lambda,
 		prgOutputLength: prgOutputLength,
 		DomainBitLength: inputDomain,
 		AlphaMax:        alphaMax,
-		BetaMax:         new(big.Int).Sub(curve.BaseField(), big.NewInt(1)),
+		BetaMax:         betaMax,
 	}, nil
 }
 
@@ -293,14 +292,12 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 // CombineResults combines the results of two partial evaluations into a single result.
 // It performs simple finite field addition.
 func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
-	y1C := new(secp256k1fp.Element).SetBigInt(y1)
-	y2C := new(secp256k1fp.Element).SetBigInt(y2)
+	y1C := bls12381.NewFr().FromBytes(y1.Bytes())
+	y2C := bls12381.NewFr().FromBytes(y2.Bytes())
 
-	res := new(secp256k1fp.Element).Add(y1C, y2C)
-
-	resBytes := res.Bytes()
-	result := new(big.Int).SetBytes(resBytes[:])
-	return result
+	res := bls12381.NewFr()
+	res.Add(y1C, y2C)
+	return res.ToBig()
 }
 
 // CombineMultipleResults combines the results of two partial evaluations into a single result.
@@ -313,13 +310,7 @@ func (d *OpTreeDPF) CombineMultipleResults(y1, y2 []*big.Int) ([]*big.Int, error
 
 	result := make([]*big.Int, len(y1))
 	for i := range y1 {
-		y1C := new(secp256k1fp.Element).SetBigInt(y1[i])
-		y2C := new(secp256k1fp.Element).SetBigInt(y2[i])
-
-		res := new(secp256k1fp.Element).Add(y1C, y2C)
-
-		resBytes := res.Bytes()
-		result[i] = new(big.Int).SetBytes(resBytes[:])
+		result[i] = d.CombineResults(y1[i], y2[i])
 	}
 
 	return result, nil
@@ -539,22 +530,19 @@ func (d *OpTreeDPF) genGroupCalc(finalSeedAlice, finalSeedBob, beta *big.Int, t 
 		return nil, err
 	}
 
-	betaC := new(secp256k1fp.Element).SetBigInt(beta) // No conversion here, as we would lose beta with this
+	betaC := bls12381.NewFr().FromBytes(beta.Bytes())
 
 	// Calculate beta - finalSeedAliceC + finalSeedBobC:
-	finalSeedAliceCNeg := new(secp256k1fp.Element).Neg(finalSeedAliceC)
-	sumBeta := new(secp256k1fp.Element).Add(betaC, finalSeedAliceCNeg)
-	sum := new(secp256k1fp.Element).Add(sumBeta, finalSeedBobC)
+	finalSeedAliceC.Neg(finalSeedAliceC)
+	betaC.Add(betaC, finalSeedAliceC)
+	betaC.Add(betaC, finalSeedBobC)
 
-	res := new(secp256k1fp.Element).Set(sum)
+	res := bls12381.NewFr().Set(betaC)
 	if t {
 		res.Neg(res)
 	}
 
-	resBytes := res.Bytes() // We need to slice the result to get from [32]byte to generic []byte
-	result := resBytes[:]
-
-	return result, nil
+	return res.ToBytes(), nil
 }
 
 // evalGroupCalc calculates a partial result from the final seed.
@@ -563,8 +551,8 @@ func (d *OpTreeDPF) evalGroupCalc(finalSeed *big.Int, cw []byte, id uint8, t boo
 	if err != nil {
 		return nil, err
 	}
-	cwC := new(secp256k1fp.Element).SetBytes(cw)
-	res := new(secp256k1fp.Element).Set(finalSeedC)
+	cwC := bls12381.NewFr().FromBytes(cw)
+	res := bls12381.NewFr().Set(finalSeedC)
 	if t {
 		res.Add(finalSeedC, cwC)
 	}
@@ -572,26 +560,20 @@ func (d *OpTreeDPF) evalGroupCalc(finalSeed *big.Int, cw []byte, id uint8, t boo
 		res.Neg(res)
 	}
 
-	resBytes := res.Bytes()
-	result := new(big.Int).SetBytes(resBytes[:])
-
-	return result, nil
+	return res.ToBig(), nil
 }
 
 // convert converts a given big.Int to a group element.
-func (d *OpTreeDPF) convert(input *big.Int) (*secp256k1fp.Element, error) {
+func (d *OpTreeDPF) convert(input *big.Int) (*bls12381.Fr, error) {
 	inputExtended, err := dpf.ExtendBigIntToBitLength(input, d.Lambda)
 	if err != nil {
 		return nil, err
 	}
 	inputExBytes := dpf.ConvertBitArrayToBytes(inputExtended)
 
-	// The SECP256K1 curve has a prime order q, so we can directly return the group element given by the PRG mod q.
+	// BLS12-381 has a prime order, so we can directly return the group element given by the PRG mod q according to the formal definition.
 	prgOutput := dpf.PRG(inputExBytes, d.prgOutputLength)
-	prgOutputInt := new(big.Int).SetBytes(prgOutput)
-
-	element := new(secp256k1fp.Element)
-	element.SetBigInt(prgOutputInt) // Includes Mod operation
+	element := bls12381.NewFr().FromBytes(prgOutput)
 
 	return element, nil
 }
