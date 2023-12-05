@@ -12,7 +12,17 @@ type DSPF struct {
 	baseDPF dpf.DPF // The base DPF used to construct the DSPF
 }
 
+// NewDSPFFactory creates a new DSPF factory with a given base DPF and domain.
 func NewDSPFFactory(baseDPF dpf.DPF) *DSPF {
+	return &DSPF{
+		baseDPF: baseDPF,
+	}
+}
+
+// NewDSPFFactoryWithDomain creates a new DSPF factory with a given base DPF and domain.
+// inputDomain sets/overwrites the input domain (= bit length of the special point) of the base DPF.
+func NewDSPFFactoryWithDomain(baseDPF dpf.DPF, inputDomain int) *DSPF {
+	baseDPF.ChangeDomain(inputDomain)
 	return &DSPF{
 		baseDPF: baseDPF,
 	}
