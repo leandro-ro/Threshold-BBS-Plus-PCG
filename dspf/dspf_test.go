@@ -45,7 +45,7 @@ func TestDSPFGenDuplicateSpecialPoints(t *testing.T) {
 }
 
 func TestDSPFGenEvalTreeDPF(t *testing.T) {
-	treeDPF128, err := treedpf.InitFactory(128)
+	treeDPF128, err := treedpf.InitFactory(128, 128)
 	if err != nil {
 		t.Errorf("InitFactory returned an unexpected error: %v", err)
 	}

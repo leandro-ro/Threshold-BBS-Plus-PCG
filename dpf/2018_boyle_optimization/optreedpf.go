@@ -81,7 +81,7 @@ type OpTreeDPF struct {
 // lambda is the security parameter and interpreted in number of bits.
 // inputDomain describes the bit length of input domain of the DPF. It limits the non-zero element to be within [0, 2^n - 1].
 // The constructor returns an error if lambda is not one of (128, 192, 256).
-func InitFactory(lambda int, inputDomain int) (*OpTreeDPF, error) {
+func InitFactory(lambda, inputDomain int) (*OpTreeDPF, error) {
 	if lambda != 128 && lambda != 192 && lambda != 256 {
 		return nil, errors.New("lambda must be 128, 192, or 256")
 
@@ -517,6 +517,13 @@ func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord
 		}
 		return []*big.Int{partialResult}, nil
 	}
+}
+
+// ChangeDomain changes the domain of the DPF.
+func (d *OpTreeDPF) ChangeDomain(domain int) {
+	d.DomainBitLength = domain
+	d.AlphaMax = new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	d.AlphaMax.Sub(d.AlphaMax, big.NewInt(1))
 }
 
 // genGroupCalc calculates the group element representation of the final correction word.

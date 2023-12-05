@@ -36,4 +36,5 @@ type DPF interface {
 	FullEval(key Key) ([]*big.Int, error)
 	FullEvalFast(key Key) ([]*big.Int, error)
 	CombineResults(y1 *big.Int, y2 *big.Int) *big.Int
+	ChangeDomain(domain int)
 }
