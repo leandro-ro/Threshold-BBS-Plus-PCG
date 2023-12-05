@@ -74,6 +74,9 @@ func (p *PCG) CentralizedGen() ([]*Seed, error) {
 
 	// 4b. Embed second part of delta correlation (a*e)
 	V, err := p.embedOLECorrelations(omega, phi, beta, epsilon)
+	if err != nil {
+		return nil, fmt.Errorf("step 4: failed to generate DSPF keys for second part of delta OLE correlation (a * e): %w", err)
+	}
 
 	// 5. Generate seed for each party
 	seeds := make([]*Seed, p.n)
