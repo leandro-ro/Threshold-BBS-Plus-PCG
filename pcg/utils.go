@@ -80,7 +80,7 @@ func outerSumBigInt(a, b []*big.Int) []*big.Int {
 	for i, ai := range a {
 		baseIndex := i * len(b)
 		for j, bj := range b {
-			result[baseIndex+j].Add(ai, bj)
+			result[baseIndex+j] = new(big.Int).Add(ai, bj)
 		}
 	}
 
@@ -95,6 +95,7 @@ func outerProductFr(a, b []*bls12381.Fr) []*bls12381.Fr {
 	for i, ai := range a {
 		baseIndex := i * len(b)
 		for j, bj := range b {
+			result[baseIndex+j] = bls12381.NewFr()
 			result[baseIndex+j].Mul(ai, bj)
 		}
 	}

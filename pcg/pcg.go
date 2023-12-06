@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"pcg-master-thesis/dpf"
 	"pcg-master-thesis/dspf"
+	"sort"
 )
 
 type PCG struct {
@@ -21,7 +22,7 @@ type PCG struct {
 
 // NewPCG creates a new PCG with the given parameters.
 // lambda is the security parameter
-// N is the domain of the underlying DSPF
+// N is the domain of the underlying DSPF. Note that this sets the max bit-length of the special elements.
 // n is the number of parties participating in this PCG
 // c is the first security parameter of the Module-LPN assumption
 // t is the second security parameter of the Module-LPN assumption
@@ -51,6 +52,7 @@ func (p *PCG) CentralizedGen() ([]*Seed, error) {
 	_, skShares := GetShamirSharedRandomElement(rng, p.n, p.n) // TODO: determine how we want to set the threshold for the signature scheme
 
 	// 2a. Initialize omega, eta, and phi by sampling at random from N
+	// TODO: The matrix resulting fromtthe outer sum between omega/eta & omega/phi must result in a matrix with unique elements. This is not guaranteed by the current implementation.
 	omega := p.sampleExponents(rng)
 	eta := p.sampleExponents(rng)
 	phi := p.sampleExponents(rng)
@@ -130,7 +132,7 @@ func (p *PCG) embedOLECorrelations(omega, o [][][]*big.Int, beta, b [][][]*bls12
 		for j := 0; j < p.n; j++ {
 			if i != j {
 				for r := 0; r < p.c; r++ {
-					for s := 0; s < p.c; r++ {
+					for s := 0; s < p.c; s++ {
 						specialPoints := outerSumBigInt(omega[i][r], o[j][s])
 						nonZeroElements := outerProductFr(beta[i][r], b[j][s])
 						key1, key2, err := p.dspf2N.Gen(specialPoints, frSliceToBigIntSlice(nonZeroElements))
@@ -148,13 +150,31 @@ func (p *PCG) embedOLECorrelations(omega, o [][][]*big.Int, beta, b [][][]*bls12
 
 // sampleExponents samples values later used as poly exponents by picking p.n*p.c random t-vectors from N.
 func (p *PCG) sampleExponents(rng *rand.Rand) [][][]*big.Int {
+	// The maximum value of an exponent is 2^N - 1
+	maxExp := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
+	maxExp.Sub(maxExp, big.NewInt(1))
+
 	exp := init3DSliceBigInt(p.n, p.c, p.t)
 	for i := 0; i < p.n; i++ {
 		for j := 0; j < p.c; j++ {
-			vec := make([]*big.Int, p.t)
-			for t := range vec {
-				vec[t].Rand(rng, big.NewInt(int64(p.N)))
+			vec := make([]*big.Int, 0, p.t)
+			elementSet := make(map[*big.Int]bool)
+
+			for len(vec) < p.t {
+				randNum := big.NewInt(0)
+				randNum.Rand(rng, maxExp)
+
+				if !elementSet[randNum] {
+					elementSet[randNum] = true
+					vec = append(vec, randNum)
+				}
 			}
+
+			// Sort vec. This makes it easier to convert to a polynomial later on.
+			sort.Slice(vec, func(i, j int) bool {
+				return vec[i].Cmp(vec[j]) < 0
+			})
+
 			exp[i][j] = vec
 		}
 	}
@@ -169,6 +189,7 @@ func (p *PCG) sampleCoefficients(rng *rand.Rand) [][][]*bls12381.Fr {
 			vec := make([]*bls12381.Fr, p.t)
 			for t := range vec {
 				randElement, _ := bls12381.NewFr().Rand(rng)
+				vec[t] = bls12381.NewFr()
 				vec[t].Set(randElement)
 			}
 			exp[i][j] = vec
