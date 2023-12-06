@@ -52,7 +52,7 @@ func (p *PCG) CentralizedGen() ([]*Seed, error) {
 	_, skShares := GetShamirSharedRandomElement(rng, p.n, p.n) // TODO: determine how we want to set the threshold for the signature scheme
 
 	// 2a. Initialize omega, eta, and phi by sampling at random from N
-	// TODO: The matrix resulting fromtthe outer sum between omega/eta & omega/phi must result in a matrix with unique elements. This is not guaranteed by the current implementation.
+	// TODO: The matrix resulting from the outer sum between omega/eta & omega/phi must result in a matrix with unique elements. This is not guaranteed by the current implementation.
 	omega := p.sampleExponents(rng)
 	eta := p.sampleExponents(rng)
 	phi := p.sampleExponents(rng)

@@ -275,6 +275,18 @@ func BenchmarkOpTreeDPFEval256_n128(b *testing.B) { benchmarkOpTreeDPFEval(b, 25
 func BenchmarkOpTreeDPFFullEval128_n10(b *testing.B)     { benchmarkOpTreeDPFFullEval(b, 128, 10) }
 func BenchmarkOpTreeDPFFullEvalFast128_n10(b *testing.B) { benchmarkOpTreeDPFFullEvalFast(b, 128, 10) }
 
+func BenchmarkOpTreeDPFFullEval128_n16(b *testing.B)     { benchmarkOpTreeDPFFullEval(b, 128, 16) }
+func BenchmarkOpTreeDPFFullEvalFast128_n16(b *testing.B) { benchmarkOpTreeDPFFullEvalFast(b, 128, 16) }
+
+func BenchmarkOpTreeDPFFullEval128_n17(b *testing.B)     { benchmarkOpTreeDPFFullEval(b, 128, 17) }
+func BenchmarkOpTreeDPFFullEvalFast128_n17(b *testing.B) { benchmarkOpTreeDPFFullEvalFast(b, 128, 17) }
+
+func BenchmarkOpTreeDPFFullEval128_n18(b *testing.B)     { benchmarkOpTreeDPFFullEval(b, 128, 18) }
+func BenchmarkOpTreeDPFFullEvalFast128_n18(b *testing.B) { benchmarkOpTreeDPFFullEvalFast(b, 128, 18) }
+
+func BenchmarkOpTreeDPFFullEval128_n19(b *testing.B)     { benchmarkOpTreeDPFFullEval(b, 128, 19) }
+func BenchmarkOpTreeDPFFullEvalFast128_n19(b *testing.B) { benchmarkOpTreeDPFFullEvalFast(b, 128, 19) }
+
 func BenchmarkOpTreeDPFFullEval128_n20(b *testing.B)     { benchmarkOpTreeDPFFullEval(b, 128, 20) }
 func BenchmarkOpTreeDPFFullEvalFast128_n20(b *testing.B) { benchmarkOpTreeDPFFullEvalFast(b, 128, 20) }
 
