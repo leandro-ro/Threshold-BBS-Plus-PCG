@@ -10,29 +10,29 @@ import (
 
 func TestNewPoly(t *testing.T) {
 	slice := randomFrSlice(100)
-	poly := NewPoly(slice)
+	poly := NewFromFr(slice)
 
 	assert.Equal(t, len(slice), len(poly.Coefficients))
 }
 
 func TestEqual(t *testing.T) {
 	slice := randomFrSlice(100)
-	poly1 := NewPoly(slice)
-	poly2 := NewPoly(slice)
+	poly1 := NewFromFr(slice)
+	poly2 := NewFromFr(slice)
 
 	assert.True(t, poly1.Equal(poly2))
 
-	poly3 := NewPoly(randomFrSlice(100))
+	poly3 := NewFromFr(randomFrSlice(100))
 	assert.False(t, poly1.Equal(poly3))
 }
 
 func TestAddPolys(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)
-	poly1 := NewPoly(slice1)
+	poly1 := NewFromFr(slice1)
 
 	slice2 := randomFrSlice(n)
-	poly2 := NewPoly(slice2)
+	poly2 := NewFromFr(slice2)
 
 	expected := make([]*bls12381.Fr, n)
 	for i := 0; i < n; i++ {
@@ -51,10 +51,10 @@ func TestAddPolys(t *testing.T) {
 func TestSubPolys(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)
-	poly1 := NewPoly(slice1)
+	poly1 := NewFromFr(slice1)
 
 	slice2 := randomFrSlice(n)
-	poly2 := NewPoly(slice2)
+	poly2 := NewFromFr(slice2)
 
 	expected := make([]*bls12381.Fr, n)
 	for i := 0; i < n; i++ {
@@ -73,10 +73,10 @@ func TestSubPolys(t *testing.T) {
 func TestAddSubPolys(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)
-	poly1 := NewPoly(slice1)
+	poly1 := NewFromFr(slice1)
 
 	slice2 := randomFrSlice(n)
-	poly2 := NewPoly(slice2)
+	poly2 := NewFromFr(slice2)
 
 	poly1.Add(poly2)
 	result := poly1.Sub(poly2)
@@ -96,7 +96,7 @@ func TestMulPolysNaive(t *testing.T) {
 		aFr[i] = bls12381.NewFr()
 		aFr[i].FromBytes(aValues[i].Bytes())
 	}
-	aPoly := NewPoly(aFr)
+	aPoly := NewFromFr(aFr)
 
 	// Test polynomial b: 84x^4 + 45x
 	bValues := []*big.Int{big.NewInt(84), big.NewInt(0), big.NewInt(0), big.NewInt(45), big.NewInt(0)}
@@ -106,7 +106,7 @@ func TestMulPolysNaive(t *testing.T) {
 		bFr[i] = bls12381.NewFr()
 		bFr[i].FromBytes(bValues[i].Bytes())
 	}
-	bPoly := NewPoly(bFr)
+	bPoly := NewFromFr(bFr)
 
 	multPolys, err := aPoly.MulNaive(bPoly)
 	assert.Nil(t, err)
@@ -124,7 +124,7 @@ func TestMulPolysNaive(t *testing.T) {
 func TestMulPolyByConstant(t *testing.T) {
 	n := 512
 	slice := randomFrSlice(n)
-	poly := NewPoly(slice)
+	poly := NewFromFr(slice)
 
 	constant := bls12381.NewFr()
 	constant.FromBytes(big.NewInt(42).Bytes())
@@ -136,7 +136,7 @@ func TestMulPolyByConstant(t *testing.T) {
 		expected[i] = bls12381.NewFr()
 		expected[i].Set(e)
 	}
-	expectedPoly := NewPoly(expected)
+	expectedPoly := NewFromFr(expected)
 
 	result := poly.MulByConstant(constant)
 	assert.True(t, expectedPoly.Equal(result))
@@ -153,4 +153,22 @@ func randomFrSlice(n int) []*bls12381.Fr {
 		slice[i].Set(fr)
 	}
 	return slice
+}
+
+func BenchmarkMulNaiveN20(b *testing.B) { benchmarkMulNaive(b, 512) }
+
+func benchmarkMulNaive(b *testing.B, n int) {
+	slice1 := randomFrSlice(n)
+	poly1 := NewFromFr(slice1)
+	slice2 := randomFrSlice(n)
+	poly2 := NewFromFr(slice2)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p := poly1
+		_, err := p.MulNaive(poly2)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }

@@ -10,6 +10,12 @@ type Polynomial struct {
 	Coefficients []*bls12381.Fr
 }
 
+// NewFromFr converts slice of *bls12381.Fr to Polynomial representation.
+func NewFromFr(values []*bls12381.Fr) Polynomial {
+	return Polynomial{Coefficients: values}
+}
+
+// Equal checks if two polynomials are equal.
 func (a *Polynomial) Equal(b Polynomial) bool {
 	if len(a.Coefficients) != len(b.Coefficients) {
 		return false
@@ -20,11 +26,6 @@ func (a *Polynomial) Equal(b Polynomial) bool {
 		}
 	}
 	return true
-}
-
-// NewPoly converts slice of *bls12381.Fr to Polynomial representation.
-func NewPoly(values []*bls12381.Fr) Polynomial {
-	return Polynomial{Coefficients: values}
 }
 
 // Add adds two polynomials.
@@ -45,7 +46,7 @@ func (a *Polynomial) Add(b Polynomial) Polynomial {
 		rValues[i].Add(coefficientA, coefficientB)
 	}
 	a.Coefficients = rValues
-	return NewPoly(rValues)
+	return NewFromFr(rValues)
 }
 
 // Sub subtracts two polynomials.
@@ -66,10 +67,11 @@ func (a *Polynomial) Sub(b Polynomial) Polynomial {
 		rValues[i].Sub(coefficientA, coefficientB)
 	}
 	a.Coefficients = rValues
-	return NewPoly(rValues)
+	return NewFromFr(rValues)
 }
 
 // MulNaive multiplies two polynomials in O(n^2) time.
+// TODO: Implement NTT multiplication. This will reduce the complexity to O(n log n).
 func (a *Polynomial) MulNaive(b Polynomial) (Polynomial, error) {
 	if len(a.Coefficients) != len(b.Coefficients) {
 		return Polynomial{}, fmt.Errorf("polynomials must have the same length")
@@ -88,7 +90,7 @@ func (a *Polynomial) MulNaive(b Polynomial) (Polynomial, error) {
 		}
 	}
 	a.Coefficients = rValues
-	return NewPoly(rValues), nil
+	return NewFromFr(rValues), nil
 }
 
 // MulByConstant multiplies a polynomial by a constant.
@@ -99,5 +101,5 @@ func (a *Polynomial) MulByConstant(c *bls12381.Fr) Polynomial {
 		rValues[i].Mul(aValue, c)
 	}
 	a.Coefficients = rValues
-	return NewPoly(rValues)
+	return NewFromFr(rValues)
 }
