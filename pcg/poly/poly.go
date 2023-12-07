@@ -3,6 +3,7 @@ package poly
 import (
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
+	"math/big"
 )
 
 // Polynomial represents a polynomial where the index is the power of x and the value is the coefficient.
@@ -13,6 +14,15 @@ type Polynomial struct {
 // NewFromFr converts slice of *bls12381.Fr to Polynomial representation.
 func NewFromFr(values []*bls12381.Fr) Polynomial {
 	return Polynomial{Coefficients: values}
+}
+
+func NewFromBig(values []*big.Int) Polynomial {
+	rValues := make([]*bls12381.Fr, len(values))
+	for i, value := range values {
+		rValues[i] = bls12381.NewFr()
+		rValues[i].FromBytes(value.Bytes())
+	}
+	return NewFromFr(rValues)
 }
 
 // Equal checks if two polynomials are equal.
@@ -93,6 +103,10 @@ func (a *Polynomial) MulNaive(b Polynomial) (Polynomial, error) {
 	return NewFromFr(rValues), nil
 }
 
+func (a *Polynomial) MulFast(b Polynomial) (Polynomial, error) {
+	return Polynomial{}, fmt.Errorf("not implemented")
+}
+
 // MulByConstant multiplies a polynomial by a constant.
 func (a *Polynomial) MulByConstant(c *bls12381.Fr) Polynomial {
 	rValues := make([]*bls12381.Fr, len(a.Coefficients))
@@ -102,4 +116,12 @@ func (a *Polynomial) MulByConstant(c *bls12381.Fr) Polynomial {
 	}
 	a.Coefficients = rValues
 	return NewFromFr(rValues)
+}
+
+func (a *Polynomial) ToBig() []*big.Int {
+	rValues := make([]*big.Int, len(a.Coefficients))
+	for i, aValue := range a.Coefficients {
+		rValues[i] = aValue.ToBig()
+	}
+	return rValues
 }
