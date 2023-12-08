@@ -1,6 +1,8 @@
 package poly
 
 import (
+	"fmt"
+	"math"
 	"math/big"
 	"sync"
 )
@@ -10,31 +12,93 @@ var (
 	TWO = big.NewInt(2)
 )
 
-// FFT is a struct that holds the modulus and root of unity to perform a FFT with these parameters.
-// Most of the code is taken from
-// https://github.com/OlegJakushkin/deepblockchains/blob/81407c2359d6680d25b507b9f4b98b42eb164978/stark/primefield.go#L580
+// frModulus is the modulus of Fr in BLS12-381
+const frModulus = "73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"
+
+// FrNthRootOfUnity is the 2^Nth root of unity for frModulus.
+const frN8thRootOfUnity = "8031134342720706638121837972897357960137225421159210873251699151356237587899"
+const frN9thRootOfUnity = "43829637617520217940831602274391167521650037592896848111162657113203041232920"
+const frN10thRootOfUnity = "12349097598587345001440480015665551665503451720274001758508693314387019426020"
+const frN11thRootOfUnity = "42853396751216975442762058439602411095138397255013100628452284779662263622774"
+const frN12thRootOfUnity = "39597673698460115882934169648122882883425923233537034756724144574500232944391"
+const frN13thRootOfUnity = "2465960250568263762220126882575252149854168204687310190867201213496387481970"
+const frN14thRootOfUnity = "9976204341776361977742748423451366288587443230841564489059561418258858231852"
+const frN15thRootOfUnity = "42400810780861186701166149563601807998852160029558626092014852995878758418500"
+const frN16thRootOfUnity = "15968166010116182336532131851767108014026905997702334713936590815301773565371"
+const frN17thRootOfUnity = "23585183866028178652016216032832088239736493004720378936587937039174931251084"
+const frN18thRootOfUnity = "6655958292649360769328239839605671205036555777397685393812647748815793627517"
+const frN19thRootOfUnity = "51555063808423308049511962493800938964626677430689792843329428329414086596084"
+const frN20thRootOfUnity = "40761091479171164124770217649282394772014553669504867428009848071682288518237"
+const frN21thRootOfUnity = "14361536881434323440496415919546682220756906901284133287236631717500087413776"
+
+// FFT is a struct that holds the modulus and root of unity to perform FFT with these parameters.
+// The FTT code was partly taken over from https://github.com/OlegJakushkin/deepblockchains/blob/81407c2359d6680d25b507b9f4b98b42eb164978/stark/primefield.go
 type FFT struct {
 	modulus     *big.Int
 	rootOfUnity *big.Int
+	n           int // n is the maximum number of coefficients of the polynomial given for multiplication.
 }
 
-func NewFFT(modulus *big.Int, rootOfUnity *big.Int) *FFT {
+func NewFFT(modulus *big.Int, rootOfUnity *big.Int) (*FFT, error) {
 	if modulus == nil || rootOfUnity == nil {
 		panic("modulus or rootOfUnity cannot be nil")
 	}
-
-	// Example check: verify if rootOfUnity^order equals 1 mod modulus
-	// You'll need to define 'order' based on your FFT requirements
-	order := new(big.Int).Exp(big.NewInt(2), big.NewInt(32), nil) // This is just an example value
-	check := new(big.Int).Exp(rootOfUnity, order, modulus)
-	if check.Cmp(ONE) != 0 {
-		panic("rootOfUnity is not a valid root of unity for the given order and modulus")
-	}
-
-	return &FFT{modulus, rootOfUnity}
+	return &FFT{modulus, rootOfUnity, -1}, nil
 }
 
-func (f *FFT) MulPolysFFT(a []*big.Int, b []*big.Int) []*big.Int {
+// NewBLS12381FFT creates a new FFT struct with the modulus and root of unity for BLS12-381.
+// 2**n is the maximum number of coefficients of the polynomial for multiplication.
+func NewBLS12381FFT(n int) (*FFT, error) {
+	modulus := new(big.Int)
+	modulus.SetString(frModulus, 16)
+
+	// we need to choose n+1, s.t. all multiplications of polynomials of degree n can be represented.
+	n = n + 1
+
+	// Choosing the appropriate root of unity for the given n is important for the FFT performance.
+	rootOfUnity := big.NewInt(0)
+	switch {
+	case n >= 1 && n <= 7: // For polynomials of degree < 2**8, naive multiplication is generally faster.
+		rootOfUnity.SetString(frN8thRootOfUnity, 10)
+	case n == 9:
+		rootOfUnity.SetString(frN9thRootOfUnity, 10)
+	case n == 10:
+		rootOfUnity.SetString(frN10thRootOfUnity, 10)
+	case n == 11:
+		rootOfUnity.SetString(frN11thRootOfUnity, 10)
+	case n == 12:
+		rootOfUnity.SetString(frN12thRootOfUnity, 10)
+	case n == 13:
+		rootOfUnity.SetString(frN13thRootOfUnity, 10)
+	case n == 14:
+		rootOfUnity.SetString(frN14thRootOfUnity, 10)
+	case n == 15:
+		rootOfUnity.SetString(frN15thRootOfUnity, 10)
+	case n == 16:
+		rootOfUnity.SetString(frN16thRootOfUnity, 10)
+	case n == 17:
+		rootOfUnity.SetString(frN17thRootOfUnity, 10)
+	case n == 18:
+		rootOfUnity.SetString(frN18thRootOfUnity, 10)
+	case n == 19:
+		rootOfUnity.SetString(frN19thRootOfUnity, 10)
+	case n == 20:
+		rootOfUnity.SetString(frN20thRootOfUnity, 10)
+	case n == 21:
+		rootOfUnity.SetString(frN21thRootOfUnity, 10)
+	default:
+		return nil, fmt.Errorf("n must be between 1 and 21 (inclusive)")
+	}
+
+	return &FFT{modulus, rootOfUnity, n}, nil
+}
+
+func (f *FFT) MulPolysFFT(a []*big.Int, b []*big.Int) ([]*big.Int, error) {
+	maxLen := int(math.Pow(2, float64(f.n)))
+	if len(a) > maxLen || len(b) > maxLen {
+		panic("polynomial too large")
+	}
+
 	x1 := f.fft(a, false)
 	x2 := f.fft(b, false)
 	c := make([]*big.Int, len(x1))
@@ -43,7 +107,18 @@ func (f *FFT) MulPolysFFT(a []*big.Int, b []*big.Int) []*big.Int {
 		t.Mul(v1, x2[i])
 		c[i] = new(big.Int).Mod(t, f.modulus)
 	}
-	return f.fft(c, true)
+
+	inv := f.fft(c, true)
+
+	result := make([]*big.Int, len(a)+len(b)-1)
+	for i := range result {
+		result[i] = big.NewInt(0)
+		if inv[i] != nil {
+			result[i].Set(inv[i])
+		}
+	}
+
+	return result, nil
 }
 
 func (f *FFT) fft(vals []*big.Int, inv bool) []*big.Int {
@@ -93,16 +168,16 @@ func (f *FFT) fft(vals []*big.Int, inv bool) []*big.Int {
 	}
 }
 
-func (f *FFT) _fft(vals []*big.Int, roots_of_unity []*big.Int) []*big.Int {
+func (f *FFT) _fft(vals []*big.Int, rootsOfUnity []*big.Int) []*big.Int {
 	if len(vals) <= 1 {
 		return vals
 	}
 
-	roots_of_unity2 := len(roots_of_unity) / 2
-	root2 := make([]*big.Int, roots_of_unity2)
-	vals_div2 := len(vals) / 2
-	for i := 0; i < roots_of_unity2; i++ {
-		root2[i] = roots_of_unity[i*2]
+	rootsOfUnity2 := len(rootsOfUnity) / 2
+	root2 := make([]*big.Int, rootsOfUnity2)
+	valsDiv2 := len(vals) / 2
+	for i := 0; i < rootsOfUnity2; i++ {
+		root2[i] = rootsOfUnity[i*2]
 	}
 	o := make([]*big.Int, len(vals))
 
@@ -110,11 +185,11 @@ func (f *FFT) _fft(vals []*big.Int, roots_of_unity []*big.Int) []*big.Int {
 	var R []*big.Int
 	if len(vals) >= 1024 {
 		var wg sync.WaitGroup
-		y_times_root := make([]*big.Int, vals_div2)
+		y_times_root := make([]*big.Int, valsDiv2)
 		wg.Add(1)
 		go func() {
-			lvals := make([]*big.Int, vals_div2)
-			for i := 0; i < vals_div2; i++ {
+			lvals := make([]*big.Int, valsDiv2)
+			for i := 0; i < valsDiv2; i++ {
 				lvals[i] = vals[i*2]
 			}
 			L = f._fft(lvals, root2)
@@ -122,13 +197,13 @@ func (f *FFT) _fft(vals []*big.Int, roots_of_unity []*big.Int) []*big.Int {
 		}()
 		wg.Add(1)
 		go func() {
-			rvals := make([]*big.Int, vals_div2)
-			for i := 0; i < vals_div2; i++ {
+			rvals := make([]*big.Int, valsDiv2)
+			for i := 0; i < valsDiv2; i++ {
 				rvals[i] = vals[i*2+1]
 			}
 			R = f._fft(rvals, root2)
 			for i, rval := range R {
-				y_times_root[i] = new(big.Int).Mul(rval, roots_of_unity[i])
+				y_times_root[i] = new(big.Int).Mul(rval, rootsOfUnity[i])
 			}
 			wg.Done()
 		}()
@@ -154,14 +229,14 @@ func (f *FFT) _fft(vals []*big.Int, roots_of_unity []*big.Int) []*big.Int {
 		}()
 		wg.Wait()
 	} else {
-		lvals := make([]*big.Int, vals_div2)
-		for i := 0; i < vals_div2; i++ {
+		lvals := make([]*big.Int, valsDiv2)
+		for i := 0; i < valsDiv2; i++ {
 			lvals[i] = vals[i*2]
 		}
 		L = f._fft(lvals, root2)
 
-		rvals := make([]*big.Int, vals_div2)
-		for i := 0; i < vals_div2; i++ {
+		rvals := make([]*big.Int, valsDiv2)
+		for i := 0; i < valsDiv2; i++ {
 			rvals[i] = vals[i*2+1]
 		}
 		R = f._fft(rvals, root2)
@@ -170,7 +245,7 @@ func (f *FFT) _fft(vals []*big.Int, roots_of_unity []*big.Int) []*big.Int {
 		t1 := new(big.Int)
 		t2 := new(big.Int)
 		for i, x := range L {
-			y_times_root.Mul(R[i], roots_of_unity[i])
+			y_times_root.Mul(R[i], rootsOfUnity[i])
 			o[i] = new(big.Int).Mod(t1.Add(x, y_times_root), f.modulus)
 			o[i+len(L)] = new(big.Int).Mod(t2.Sub(x, y_times_root), f.modulus)
 		}

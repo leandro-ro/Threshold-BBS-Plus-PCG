@@ -3,6 +3,7 @@ package poly
 import (
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
+	"math"
 	"math/big"
 )
 
@@ -16,6 +17,7 @@ func NewFromFr(values []*bls12381.Fr) Polynomial {
 	return Polynomial{Coefficients: values}
 }
 
+// NewFromBig converts slice of *big.Int to Polynomial representation.
 func NewFromBig(values []*big.Int) Polynomial {
 	rValues := make([]*bls12381.Fr, len(values))
 	for i, value := range values {
@@ -80,9 +82,22 @@ func (a *Polynomial) Sub(b Polynomial) Polynomial {
 	return NewFromFr(rValues)
 }
 
-// MulNaive multiplies two polynomials in O(n^2) time.
-// TODO: Implement NTT multiplication. This will reduce the complexity to O(n log n).
-func (a *Polynomial) MulNaive(b Polynomial) (Polynomial, error) {
+// Mul multiplies two polynomials.
+// If the length of the polynomials is less than 256, it uses naive multiplication.
+// Otherwise, it uses FFT.
+func (a *Polynomial) Mul(b Polynomial) (Polynomial, error) {
+	if len(a.Coefficients) != len(b.Coefficients) {
+		return Polynomial{}, fmt.Errorf("polynomials must have the same length")
+	}
+
+	if len(a.Coefficients) < 256 {
+		return a.mulNaive(b)
+	}
+	return a.mulFast(b)
+}
+
+// mulNaive multiplies two polynomials in O(n^2).
+func (a *Polynomial) mulNaive(b Polynomial) (Polynomial, error) {
 	if len(a.Coefficients) != len(b.Coefficients) {
 		return Polynomial{}, fmt.Errorf("polynomials must have the same length")
 	}
@@ -103,8 +118,25 @@ func (a *Polynomial) MulNaive(b Polynomial) (Polynomial, error) {
 	return NewFromFr(rValues), nil
 }
 
-func (a *Polynomial) MulFast(b Polynomial) (Polynomial, error) {
-	return Polynomial{}, fmt.Errorf("not implemented")
+// mulFast multiplies two polynomials in O(nlogn) using FFT.
+func (a *Polynomial) mulFast(b Polynomial) (Polynomial, error) {
+	if len(a.Coefficients) != len(b.Coefficients) {
+		return Polynomial{}, fmt.Errorf("polynomials must have the same length")
+	}
+
+	n := math.Ceil(math.Log2(float64(len(a.Coefficients))))
+	fft, err := NewBLS12381FFT(int(n))
+	if err != nil {
+		return Polynomial{}, err
+	}
+	resultBig, err := fft.MulPolysFFT(a.ToBig(), b.ToBig())
+	if err != nil {
+		return Polynomial{}, err
+	}
+	result := NewFromBig(resultBig)
+
+	a.Coefficients = result.Coefficients
+	return result, nil
 }
 
 // MulByConstant multiplies a polynomial by a constant.
