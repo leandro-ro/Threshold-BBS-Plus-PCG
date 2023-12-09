@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestNewPoly(t *testing.T) {
@@ -13,6 +14,19 @@ func TestNewPoly(t *testing.T) {
 	poly := NewFromFr(slice)
 
 	assert.Equal(t, len(slice), len(poly.Coefficients))
+}
+
+func TestNewSparsePoly(t *testing.T) {
+	sparseT := 4
+	maxExp := big.NewInt(127)
+
+	coefficients := randomFrSlice(sparseT)
+	exponents := []*big.Int{big.NewInt(2), big.NewInt(9), big.NewInt(8), maxExp}
+	poly, err := NewSparse(coefficients, exponents)
+	assert.Nil(t, err)
+
+	assert.Equal(t, len(poly.Coefficients), int(maxExp.Int64()+1))
+	assert.Equal(t, len(exponents), len(poly.nonZeroPos))
 }
 
 func TestEqual(t *testing.T) {
@@ -88,11 +102,11 @@ func TestAddSubPolys(t *testing.T) {
 
 func TestMulPolysNaive(t *testing.T) {
 	// Test polynomial a: 12x^4 + 25x^3 + 4x^2 + 17
-	aValues := []*big.Int{big.NewInt(12), big.NewInt(25), big.NewInt(4), big.NewInt(0), big.NewInt(17)}
+	aValues := []*big.Int{big.NewInt(17), big.NewInt(0), big.NewInt(4), big.NewInt(25), big.NewInt(12)}
 	aPoly := NewFromBig(aValues)
 
 	// Test polynomial b: 84x^4 + 45x
-	bValues := []*big.Int{big.NewInt(84), big.NewInt(0), big.NewInt(0), big.NewInt(45), big.NewInt(0)}
+	bValues := []*big.Int{big.NewInt(0), big.NewInt(45), big.NewInt(0), big.NewInt(0), big.NewInt(84)}
 	bPoly := NewFromBig(bValues)
 
 	result, err := aPoly.mulNaive(bPoly)
@@ -100,7 +114,7 @@ func TestMulPolysNaive(t *testing.T) {
 	assert.NotNil(t, result)
 
 	// Expected result: 1008x^8 + 2100x^7 + 336x^6 + 540x^5 + 2553x^4 + 180x^3 + 765x
-	expectedValues := []*big.Int{big.NewInt(1008), big.NewInt(2100), big.NewInt(336), big.NewInt(540), big.NewInt(2553), big.NewInt(180), big.NewInt(0), big.NewInt(765), big.NewInt(0)}
+	expectedValues := []*big.Int{big.NewInt(0), big.NewInt(765), big.NewInt(0), big.NewInt(180), big.NewInt(2553), big.NewInt(540), big.NewInt(336), big.NewInt(2100), big.NewInt(1008)}
 	expected := NewFromBig(expectedValues)
 
 	assert.Equal(t, len(expected.Coefficients), len(result.Coefficients))
@@ -126,13 +140,66 @@ func TestMulPolyFastEqual(t *testing.T) {
 	assert.True(t, result1.Equal(result2))
 }
 
+func TestMulPolySparseEqual(t *testing.T) {
+	sparseT := 16
+	maxExp := big.NewInt(127)
+
+	coefficientsA := randomFrSlice(sparseT)
+	exponentsA := randomBigIntSlice(sparseT, maxExp)
+	exponentsA[sparseT-1].Set(big.NewInt(128)) // Ensure equal degree.
+	polyA, err := NewSparse(coefficientsA, exponentsA)
+	assert.Nil(t, err)
+
+	coefficientsB := randomFrSlice(sparseT)
+	exponentsB := randomBigIntSlice(sparseT, maxExp)
+	exponentsB[sparseT-1].Set(big.NewInt(128)) // Ensure equal degree.
+	polyB, err := NewSparse(coefficientsB, exponentsB)
+	assert.Nil(t, err)
+
+	result1, err := polyA.mulNaive(polyB)
+	assert.Nil(t, err)
+
+	result2, err := polyA.mulSparse(polyB)
+	assert.Nil(t, err)
+
+	assert.Equal(t, len(result1.Coefficients), len(result2.Coefficients))
+	assert.True(t, result1.Equal(result2))
+}
+
+func TestMulSparseDiffLengthCorrectness(t *testing.T) {
+	sparseT := 16
+	maxExp := big.NewInt(128)
+
+	coefficientsA := randomFrSlice(sparseT)
+	exponentsA := randomBigIntSlice(sparseT, maxExp)
+	exponentsA[sparseT-1].Set(big.NewInt(128))
+	polyA, err := NewSparse(coefficientsA, exponentsA)
+	assert.Nil(t, err)
+
+	coefficientsB := randomFrSlice(sparseT)
+	exponentsB := randomBigIntSlice(sparseT, maxExp)
+	exponentsB[sparseT-1].Set(big.NewInt(256)) // Ensure higher degree
+	polyB, err := NewSparse(coefficientsB, exponentsB)
+	assert.Nil(t, err)
+
+	result1, err := polyA.Mul(polyB)
+	assert.Nil(t, err)
+
+	result2, err := polyA.mulNaive(polyB)
+	assert.Nil(t, err)
+
+	assert.Equal(t, len(result1.Coefficients), len(result2.Coefficients))
+	assert.True(t, result1.Equal(result2))
+
+}
+
 func TestMulPolyFastFixed(t *testing.T) {
 	// Test polynomial a: 12x^4 + 25x^3 + 4x^2 + 17
-	aValues := []*big.Int{big.NewInt(12), big.NewInt(25), big.NewInt(4), big.NewInt(0), big.NewInt(17)}
+	aValues := []*big.Int{big.NewInt(17), big.NewInt(0), big.NewInt(4), big.NewInt(25), big.NewInt(12)}
 	aPoly := NewFromBig(aValues)
 
 	// Test polynomial b: 84x^4 + 45x
-	bValues := []*big.Int{big.NewInt(84), big.NewInt(0), big.NewInt(0), big.NewInt(45), big.NewInt(0)}
+	bValues := []*big.Int{big.NewInt(0), big.NewInt(45), big.NewInt(0), big.NewInt(0), big.NewInt(84)}
 	bPoly := NewFromBig(bValues)
 
 	result, err := aPoly.mulFast(bPoly)
@@ -140,7 +207,7 @@ func TestMulPolyFastFixed(t *testing.T) {
 	assert.NotNil(t, result)
 
 	// Expected result: 1008x^8 + 2100x^7 + 336x^6 + 540x^5 + 2553x^4 + 180x^3 + 765x
-	expectedValues := []*big.Int{big.NewInt(1008), big.NewInt(2100), big.NewInt(336), big.NewInt(540), big.NewInt(2553), big.NewInt(180), big.NewInt(0), big.NewInt(765), big.NewInt(0)}
+	expectedValues := []*big.Int{big.NewInt(0), big.NewInt(765), big.NewInt(0), big.NewInt(180), big.NewInt(2553), big.NewInt(540), big.NewInt(336), big.NewInt(2100), big.NewInt(1008)}
 	expected := NewFromBig(expectedValues)
 
 	assert.Equal(t, len(expected.Coefficients), len(result.Coefficients))
@@ -181,12 +248,37 @@ func randomFrSlice(n int) []*bls12381.Fr {
 	return slice
 }
 
-func BenchmarkMulNaiveN8(b *testing.B)  { benchmarkMulNaive(b, 256) }
-func BenchmarkMulFastN8(b *testing.B)   { benchmarkMulFast(b, 256) }
-func BenchmarkMulNaiveN10(b *testing.B) { benchmarkMulNaive(b, 1024) }
-func BenchmarkMulFastN10(b *testing.B)  { benchmarkMulFast(b, 1024) }
-func BenchmarkMulNaiveN12(b *testing.B) { benchmarkMulNaive(b, 4096) }
-func BenchmarkMulFastN12(b *testing.B)  { benchmarkMulFast(b, 4096) }
+// randomBigIntSlice generates a slice of random *big.Int values.
+func randomBigIntSlice(n int, max *big.Int) []*big.Int {
+	slice := make([]*big.Int, n)
+	seen := make(map[string]bool)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for i := 0; i < n; i++ {
+		for {
+			randNum := new(big.Int).Rand(rng, max)
+			numStr := randNum.String()
+
+			if !seen[numStr] {
+				slice[i] = randNum
+				seen[numStr] = true
+				break
+			}
+		}
+	}
+
+	return slice
+}
+
+func BenchmarkMulNaiveN8(b *testing.B)   { benchmarkMulNaive(b, 256) }
+func BenchmarkMulFastN8(b *testing.B)    { benchmarkMulFast(b, 256) }
+func BenchmarkMulNaiveN10(b *testing.B)  { benchmarkMulNaive(b, 1024) }
+func BenchmarkMulFastN10(b *testing.B)   { benchmarkMulFast(b, 1024) }
+func BenchmarkMulNaiveN12(b *testing.B)  { benchmarkMulNaive(b, 4096) }
+func BenchmarkMulFastN12(b *testing.B)   { benchmarkMulFast(b, 4096) }
+func BenchmarkMulFastN20(b *testing.B)   { benchmarkMulFast(b, 1048576) }
+func BenchmarkSparseN20T16(b *testing.B) { benchmarkMulSparse(b, 1048576, 16) }
+func BenchmarkSparseN21T32(b *testing.B) { benchmarkMulSparse(b, 2097152, 32) }
 
 func benchmarkMulNaive(b *testing.B, n int) {
 	slice1 := randomFrSlice(n)
@@ -196,8 +288,7 @@ func benchmarkMulNaive(b *testing.B, n int) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p := poly1
-		_, err := p.mulNaive(poly2)
+		_, err := poly1.mulNaive(poly2)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -212,8 +303,25 @@ func benchmarkMulFast(b *testing.B, n int) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p := poly1
-		_, err := p.mulFast(poly2)
+		_, err := poly1.mulFast(poly2)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkMulSparse(b *testing.B, n, t int) {
+	coefficientsA := randomFrSlice(t)
+	exponentsA := randomBigIntSlice(t, big.NewInt(int64(n)))
+	polyA, _ := NewSparse(coefficientsA, exponentsA)
+
+	coefficientsB := randomFrSlice(t)
+	exponentsB := randomBigIntSlice(t, big.NewInt(int64(n)))
+	polyB, _ := NewSparse(coefficientsB, exponentsB)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := polyA.Mul(polyB) // Mul will use the fast algorithm for sparse polynomials.
 		if err != nil {
 			b.Fatal(err)
 		}
