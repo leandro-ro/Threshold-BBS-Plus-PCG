@@ -77,8 +77,25 @@ func (d *DSPF) Eval(dspfKey Key, x *big.Int) ([]*big.Int, error) {
 	return ys, nil
 }
 
-// CombineResults combines the results from the evaluations of DSPF key.
-func (d *DSPF) CombineResults(y1 []*big.Int, y2 []*big.Int) (*big.Int, error) {
+// CombineMultipleResults combines the results from multiple (e.g. full) key evaluations.
+func (d *DSPF) CombineMultipleResults(y1 [][]*big.Int, y2 [][]*big.Int) ([]*big.Int, error) {
+	if len(y1) != len(y2) {
+		return nil, errors.New("length of y1 and y2 must match")
+	}
+	combined := make([]*big.Int, len(y1))
+	for i := range y1 {
+		res, err := d.CombineSingleResult(y1[i], y2[i])
+		if err != nil {
+			return nil, err
+		}
+		combined[i] = big.NewInt(0)
+		combined[i].Set(res)
+	}
+	return combined, nil
+}
+
+// CombineSingleResult combines the results from a single key evaluation.
+func (d *DSPF) CombineSingleResult(y1 []*big.Int, y2 []*big.Int) (*big.Int, error) {
 	if len(y1) != len(y2) {
 		return nil, errors.New("length of y1 and y2 must match")
 	}

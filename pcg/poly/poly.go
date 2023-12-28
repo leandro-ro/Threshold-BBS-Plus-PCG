@@ -82,8 +82,8 @@ func (a *Polynomial) Equal(b Polynomial) bool {
 	if len(a.Coefficients) != len(b.Coefficients) {
 		return false
 	}
-	for i, aValue := range a.Coefficients {
-		if !aValue.Equal(b.Coefficients[i]) {
+	for i := range a.Coefficients {
+		if !a.getCoefficient(i).Equal(b.getCoefficient(i)) {
 			return false
 		}
 	}
@@ -98,13 +98,13 @@ func (a *Polynomial) Add(b Polynomial) Polynomial {
 	for i := 0; i < maxLen; i++ {
 		coefficientA := bls12381.NewFr()
 		if i < len(a.Coefficients) {
-			coefficientA.Set(a.Coefficients[i])
+			coefficientA.Set(a.getCoefficient(i))
 		} else {
 			coefficientA.Zero()
 		}
 		coefficientB := bls12381.NewFr()
 		if i < len(b.Coefficients) {
-			coefficientB.Set(b.Coefficients[i])
+			coefficientB.Set(b.getCoefficient(i))
 		} else {
 			coefficientB.Zero()
 		}
@@ -123,11 +123,11 @@ func (a *Polynomial) Sub(b Polynomial) Polynomial {
 	for i := 0; i < maxLen; i++ {
 		coefficientA := bls12381.NewFr()
 		if i < len(a.Coefficients) {
-			coefficientA.Set(a.Coefficients[i])
+			coefficientA.Set(a.getCoefficient(i))
 		}
 		coefficientB := bls12381.NewFr()
 		if i < len(b.Coefficients) {
-			coefficientB.Set(b.Coefficients[i])
+			coefficientB.Set(b.getCoefficient(i))
 		}
 		rValues[i] = bls12381.NewFr()
 		rValues[i].Sub(coefficientA, coefficientB)
@@ -273,15 +273,19 @@ func (a *Polynomial) mulFast(b Polynomial) (Polynomial, error) {
 	return result, nil
 }
 
-// MulByConstant multiplies a polynomial by a constant.
+// MulByConstant multiplies the polynomial by a constant.
+// It changes the original polynomial and returns a copy of it.
 func (a *Polynomial) MulByConstant(c *bls12381.Fr) Polynomial {
-	rValues := make([]*bls12381.Fr, len(a.Coefficients))
-	for i, aValue := range a.Coefficients {
-		rValues[i] = bls12381.NewFr()
-		rValues[i].Mul(aValue, c)
+	if a.IsSparse { // Knowing the polynomial is sparse we can only multiply the non-zero coefficients
+		for _, pos := range a.nonZeroPos {
+			a.Coefficients[pos].Mul(a.Coefficients[pos], c)
+		}
+	} else {
+		for i := range a.Coefficients {
+			a.Coefficients[i].Mul(a.Coefficients[i], c)
+		}
 	}
-	a.Coefficients = rValues
-	return NewFromFr(rValues)
+	return a.Copy()
 }
 
 // ToBig converts a polynomial to a slice of *big.Int.
@@ -296,14 +300,48 @@ func (a *Polynomial) ToBig() []*big.Int {
 // Copy returns a copy of the polynomial.
 func (a *Polynomial) Copy() Polynomial {
 	rValues := make([]*bls12381.Fr, len(a.Coefficients))
-	for i, aValue := range a.Coefficients {
-		rValues[i] = bls12381.NewFr()
-		rValues[i].Set(aValue)
+	if a.IsSparse {
+		for _, pos := range a.nonZeroPos {
+			rValues[pos] = bls12381.NewFr().Set(a.Coefficients[pos])
+		}
+	} else {
+		for i, aValue := range a.Coefficients {
+			rValues[i] = bls12381.NewFr().Set(aValue)
+		}
 	}
+
 	poly := NewFromFr(rValues)
 	poly.IsSparse = a.IsSparse
-	poly.nonZeroPos = a.nonZeroPos
+	if a.IsSparse {
+		poly.nonZeroPos = make([]int, len(a.nonZeroPos))
+		copy(poly.nonZeroPos, a.nonZeroPos)
+	}
 	return poly
+}
+
+// SparseBigAdd adds a slice of *big.Int to the coefficients of a sparse polynomial.
+// It changes the original polynomial and returns nil if successful.
+func (a *Polynomial) SparseBigAdd(b []*big.Int) error {
+	if !a.IsSparse {
+		return fmt.Errorf("polynomial must be sparse to use SparseBigAdd")
+	} else if len(a.nonZeroPos) != len(b) {
+		return fmt.Errorf("length of the big.int slice must match with the number of non-zero coefficients")
+	}
+
+	for i, pos := range a.nonZeroPos {
+		element := bls12381.NewFr()
+		element.FromBytes(b[i].Bytes())
+		a.Coefficients[pos].Add(a.Coefficients[pos], element)
+	}
+
+	return nil
+}
+
+func (a *Polynomial) getCoefficient(i int) *bls12381.Fr {
+	if a.Coefficients[i] == nil {
+		return bls12381.NewFr().Zero()
+	}
+	return a.Coefficients[i]
 }
 
 // unique removes duplicate integers from a slice.

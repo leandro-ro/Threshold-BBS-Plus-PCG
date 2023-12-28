@@ -31,9 +31,9 @@ type Seed struct {
 	ski          *bls12381.Fr
 	exponents    SeedExponents
 	coefficients SeedCoefficients
-	U            [][][]*DSPFKeyPair
-	C            [][][][]*DSPFKeyPair
-	V            [][][][]*DSPFKeyPair
+	U            [][][]*DSPFKeyPair   // U[i][j][r]
+	C            [][][][]*DSPFKeyPair // C[i][j][r][s]
+	V            [][][][]*DSPFKeyPair // V[i][j][r][s]
 }
 
 func (s *Seed) Serialize() ([]byte, error) {

@@ -40,6 +40,26 @@ func TestEqual(t *testing.T) {
 	assert.False(t, poly1.Equal(poly3))
 }
 
+func TestCopy(t *testing.T) {
+	slice := randomFrSlice(100)
+	poly1 := NewFromFr(slice)
+
+	poly2 := poly1.Copy()
+	assert.True(t, poly1.Equal(poly2))
+
+	sparseT := 16
+	maxExp := big.NewInt(127)
+
+	coefficientsA := randomFrSlice(sparseT)
+	exponentsA := randomBigIntSlice(sparseT, maxExp)
+	exponentsA[sparseT-1].Set(big.NewInt(128)) // Ensure equal degree.
+	polyA, err := NewSparse(coefficientsA, exponentsA)
+	assert.Nil(t, err)
+
+	polyB := polyA.Copy()
+	assert.True(t, polyA.Equal(polyB))
+}
+
 func TestAddPolys(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)

@@ -6,7 +6,9 @@ import (
 	"math/big"
 	"math/rand"
 	"pcg-master-thesis/dpf"
+	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
 	"pcg-master-thesis/dspf"
+	"pcg-master-thesis/pcg/poly"
 	"sort"
 )
 
@@ -18,6 +20,7 @@ type PCG struct {
 	t      int        // t is the second security parameter of the Module-LPN assumption
 	dspfN  *dspf.DSPF // dpfN is the Distributed Sum of Point Function used to construct the PCG with domain N
 	dspf2N *dspf.DSPF // dpf2N is the Distributed Sum of Point Function used to construct the PCG with domain 2N
+	rng    *rand.Rand // rng is the random number generator used to sample the PCG seeds
 }
 
 // NewPCG creates a new PCG with the given parameters.
@@ -26,17 +29,30 @@ type PCG struct {
 // n is the number of parties participating in this PCG
 // c is the first security parameter of the Module-LPN assumption
 // t is the second security parameter of the Module-LPN assumption
-// dpf is the underlying DPF used to construct the DSPF. Its domain is implicitly set to N/2N.
-func NewPCG(lambda, N, n, c, t int, dpf dpf.DPF) *PCG {
+func NewPCG(lambda, N, n, c, t int) (*PCG, error) {
+	seed, _ := bytesToInt64(dpf.RandomSeed(8))
+	rng := rand.New(rand.NewSource(seed)) // TODO: Swap this out for a secure PRG
+
+	// TODO: Make base DPF exchangeable
+	baseDpfN, err := optreedpf.InitFactory(lambda, N)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize base DPF with domain N: %w", err)
+	}
+	baseDpf2N, err := optreedpf.InitFactory(lambda, N+1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize base DPF with domain 2N: %w", err)
+	}
+
 	return &PCG{
 		lambda: lambda,
 		N:      N,
 		n:      n,
 		c:      c,
 		t:      t,
-		dspfN:  dspf.NewDSPFFactoryWithDomain(dpf, N),
-		dspf2N: dspf.NewDSPFFactoryWithDomain(dpf, 2*N),
-	}
+		dspfN:  dspf.NewDSPFFactoryWithDomain(baseDpfN, N),
+		dspf2N: dspf.NewDSPFFactoryWithDomain(baseDpf2N, N+1),
+		rng:    rng,
+	}, nil
 }
 
 // CentralizedGen generates a seed for each party via a central dealer.
@@ -44,23 +60,18 @@ func NewPCG(lambda, N, n, c, t int, dpf dpf.DPF) *PCG {
 func (p *PCG) CentralizedGen() ([]*Seed, error) {
 	// Notation of the variables analogue to the notation from the formal definition of PCG
 	// 1. Generate key shares for each party
-	seed, err := bytesToInt64(dpf.RandomSeed(8))
-	if err != nil {
-		return nil, err
-	}
-	rng := rand.New(rand.NewSource(seed))
-	_, skShares := GetShamirSharedRandomElement(rng, p.n, p.n) // TODO: determine how we want to set the threshold for the signature scheme
+	_, skShares := GetShamirSharedRandomElement(p.rng, p.n, p.n) // TODO: determine how we want to set the threshold for the signature scheme
 
 	// 2a. Initialize omega, eta, and phi by sampling at random from N
 	// TODO: The matrix resulting from the outer sum between omega/eta & omega/phi must result in a matrix with unique elements. This is not guaranteed by the current implementation.
-	omega := p.sampleExponents(rng)
-	eta := p.sampleExponents(rng)
-	phi := p.sampleExponents(rng)
+	omega := p.sampleExponents()
+	eta := p.sampleExponents()
+	phi := p.sampleExponents()
 
 	// 2b. Initialize beta, gamma and epsilon by sampling at random from F_q (bls12381.Fr)
-	beta := p.sampleCoefficients(rng)
-	gamma := p.sampleCoefficients(rng)
-	epsilon := p.sampleCoefficients(rng)
+	beta := p.sampleCoefficients()
+	gamma := p.sampleCoefficients()
+	epsilon := p.sampleCoefficients()
 
 	// 3. Embed first part of delta correlation (sk*a)
 	U, err := p.embedVOLECorrelations(omega, beta, skShares)
@@ -87,9 +98,9 @@ func (p *PCG) CentralizedGen() ([]*Seed, error) {
 			index: i,
 			ski:   skShares[i],
 			exponents: SeedExponents{
-				omega: omega[i],
-				eta:   eta[i],
-				phi:   phi[i],
+				omega: omega.values[i],
+				eta:   eta.values[i],
+				phi:   phi.values[i],
 			},
 			coefficients: SeedCoefficients{
 				beta:    beta[i],
@@ -105,15 +116,66 @@ func (p *PCG) CentralizedGen() ([]*Seed, error) {
 	return seeds, nil
 }
 
+func (p *PCG) Eval(seed *Seed) (*GeneratedTuples, error) {
+	// 1. Generate polynomials
+	u, err := p.constructPolys(seed.coefficients.beta, seed.exponents.omega)
+	if err != nil {
+		return nil, fmt.Errorf("step 1: failed to generate polynomials for u from beta and omega: %w", err)
+	}
+	//v, err := p.constructPolys(seed.coefficients.gamma, seed.exponents.eta)
+	//if err != nil {
+	//	return nil, fmt.Errorf("step 1: failed to generate polynomials for v from gamma and eta: %w", err)
+	//}
+	//w, err := p.constructPolys(seed.coefficients.epsilon, seed.exponents.phi)
+	//if err != nil {
+	//	return nil, fmt.Errorf("step 1: failed to generate polynomials for w from epsilon and phi: %w", err)
+	//}
+
+	// 2. Compute VOLE seed
+	utilde := make([]*poly.Polynomial, p.c)
+	for r := 0; r < p.c; r++ {
+		ur := u[r].Copy()          // We need unmodified u[r] later on, so we copy it
+		ur.MulByConstant(seed.ski) // u[r] * sk[i]
+		for i := 0; i < p.n; i++ {
+			for j := 0; j < p.n; j++ {
+				if i != j {
+					fmt.Println("progress: ", i, j, r, "of", p.n, p.n, p.c)
+					feval0, err := p.dspfN.FullEvalFast(seed.U[i][j][r].Key0)
+					if err != nil {
+						return nil, err
+					}
+					feval1, err := p.dspfN.FullEvalFast(seed.U[i][j][r].Key1)
+					if err != nil {
+						return nil, err
+					}
+
+					res, err := p.dspfN.CombineMultipleResults(feval0, feval1)
+					if len(res) != p.t {
+						return nil, fmt.Errorf("step 2: length of VOLE DSPF FullEval is %d but is expected to be t=%d", len(res), p.t)
+					}
+
+					err = ur.SparseBigAdd(res)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+		utilde[r] = &ur
+	}
+
+	return nil, nil
+}
+
 // embedVOLECorrelations embeds VOLE correlations into DSPF keys.
-func (p *PCG) embedVOLECorrelations(omega [][][]*big.Int, beta [][][]*bls12381.Fr, skShares []*bls12381.Fr) ([][][]*DSPFKeyPair, error) {
+func (p *PCG) embedVOLECorrelations(omega *SampledExponents, beta [][][]*bls12381.Fr, skShares []*bls12381.Fr) ([][][]*DSPFKeyPair, error) {
 	U := init3DSliceDspfKey(p.n, p.n, p.c)
 	for i := 0; i < p.n; i++ {
 		for j := 0; j < p.n; j++ {
 			if i != j {
 				for r := 0; r < p.c; r++ {
 					nonZeroElements := scalarMulFr(skShares[i], beta[i][r])
-					key1, key2, err := p.dspfN.Gen(omega[i][r], frSliceToBigIntSlice(nonZeroElements))
+					key1, key2, err := p.dspfN.Gen(omega.values[i][r], frSliceToBigIntSlice(nonZeroElements))
 					if err != nil {
 						return nil, err
 					}
@@ -126,14 +188,41 @@ func (p *PCG) embedVOLECorrelations(omega [][][]*big.Int, beta [][][]*bls12381.F
 }
 
 // embedOLECorrelations embeds OLE correlations into DSPF keys.
-func (p *PCG) embedOLECorrelations(omega, o [][][]*big.Int, beta, b [][][]*bls12381.Fr) ([][][][]*DSPFKeyPair, error) {
+func (p *PCG) embedOLECorrelations(omega, o *SampledExponents, beta, b [][][]*bls12381.Fr) ([][][][]*DSPFKeyPair, error) {
 	U := init4DSliceDspfKey(p.n, p.n, p.c)
 	for i := 0; i < p.n; i++ {
 		for j := 0; j < p.n; j++ {
 			if i != j {
 				for r := 0; r < p.c; r++ {
 					for s := 0; s < p.c; s++ {
-						specialPoints := outerSumBigInt(omega[i][r], o[j][s])
+						// As computing the outer sum between omega and o can result in duplicate special points, we need to check for this
+						// and generate a new o if this is the case until we have a set of special points without duplicates.
+						specialPoints := outerSumBigInt(omega.values[i][r], o.values[j][s]) // We can only change o, as omega is used in the other OLE correlation
+						for hasDuplicates(specialPoints) {
+							maxExp := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
+							maxExp.Sub(maxExp, big.NewInt(1))
+
+							vec := make([]*big.Int, 0, p.t)
+							elementSet := make(map[*big.Int]bool)
+							for len(vec) < p.t {
+								randNum := big.NewInt(0)
+								randNum.Rand(p.rng, maxExp)
+
+								if !elementSet[randNum] {
+									elementSet[randNum] = true
+									vec = append(vec, randNum)
+								}
+							}
+
+							// Sort vec. This makes it easier to convert to a polynomial later on.
+							sort.Slice(vec, func(i, j int) bool {
+								return vec[i].Cmp(vec[j]) < 0
+							})
+
+							o.values[j][s] = vec
+							specialPoints = outerSumBigInt(omega.values[i][r], o.values[j][s])
+						}
+
 						nonZeroElements := outerProductFr(beta[i][r], b[j][s])
 						key1, key2, err := p.dspf2N.Gen(specialPoints, frSliceToBigIntSlice(nonZeroElements))
 						if err != nil {
@@ -148,8 +237,12 @@ func (p *PCG) embedOLECorrelations(omega, o [][][]*big.Int, beta, b [][][]*bls12
 	return U, nil
 }
 
+type SampledExponents struct {
+	values [][][]*big.Int
+}
+
 // sampleExponents samples values later used as poly exponents by picking p.n*p.c random t-vectors from N.
-func (p *PCG) sampleExponents(rng *rand.Rand) [][][]*big.Int {
+func (p *PCG) sampleExponents() *SampledExponents {
 	// The maximum value of an exponent is 2^N - 1
 	maxExp := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
 	maxExp.Sub(maxExp, big.NewInt(1))
@@ -162,7 +255,7 @@ func (p *PCG) sampleExponents(rng *rand.Rand) [][][]*big.Int {
 
 			for len(vec) < p.t {
 				randNum := big.NewInt(0)
-				randNum.Rand(rng, maxExp)
+				randNum.Rand(p.rng, maxExp)
 
 				if !elementSet[randNum] {
 					elementSet[randNum] = true
@@ -178,17 +271,17 @@ func (p *PCG) sampleExponents(rng *rand.Rand) [][][]*big.Int {
 			exp[i][j] = vec
 		}
 	}
-	return exp
+	return &SampledExponents{exp}
 }
 
 // sampleCoefficients samples values later used as poly coefficients by picking p.n*p.c random t-vectors from Fq.
-func (p *PCG) sampleCoefficients(rng *rand.Rand) [][][]*bls12381.Fr {
+func (p *PCG) sampleCoefficients() [][][]*bls12381.Fr {
 	exp := init3DSliceFr(p.n, p.c, p.t)
 	for i := 0; i < p.n; i++ {
 		for j := 0; j < p.c; j++ {
 			vec := make([]*bls12381.Fr, p.t)
 			for t := range vec {
-				randElement, _ := bls12381.NewFr().Rand(rng)
+				randElement, _ := bls12381.NewFr().Rand(p.rng)
 				vec[t] = bls12381.NewFr()
 				vec[t].Set(randElement)
 			}
@@ -196,4 +289,45 @@ func (p *PCG) sampleCoefficients(rng *rand.Rand) [][][]*bls12381.Fr {
 		}
 	}
 	return exp
+}
+
+// constructPolys constructs c t-sparse polynomial from the given coefficients and exponents.
+func (p *PCG) constructPolys(coefficients [][]*bls12381.Fr, exponents [][]*big.Int) ([]*poly.Polynomial, error) {
+	if len(coefficients) != p.c {
+		return nil, fmt.Errorf("amount of coefficient slices is %d but is expected to be c=%d", len(coefficients), p.c)
+	}
+	if len(exponents) != p.c {
+		return nil, fmt.Errorf("amount of exponents slices is %d but is expected to be c=%d", len(coefficients), p.c)
+	}
+
+	res := make([]*poly.Polynomial, p.c)
+	for r := 0; r < p.c; r++ {
+		if len(coefficients[r]) != p.t {
+			return nil, fmt.Errorf("amount of coefficients is %d but is expected to be t=%d", len(coefficients[r]), p.t)
+		}
+		if len(exponents[r]) != p.t {
+			return nil, fmt.Errorf("amount of exponents is %d but is expected to be t=%d", len(coefficients[r]), p.t)
+		}
+		generatedPoly, err := poly.NewSparse(coefficients[r], exponents[r])
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate polynomial: %w", err)
+		}
+		res[r] = &generatedPoly
+	}
+
+	return res, nil
+}
+
+func hasDuplicates(slice []*big.Int) bool {
+	seen := make(map[string]struct{})
+	for _, value := range slice {
+		// Convert *big.Int to a string for comparison, as map keys need to be comparable
+		strValue := value.String()
+		if _, exists := seen[strValue]; exists {
+			// Duplicate found
+			return true
+		}
+		seen[strValue] = struct{}{}
+	}
+	return false
 }

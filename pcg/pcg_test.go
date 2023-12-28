@@ -2,17 +2,26 @@ package pcg
 
 import (
 	"github.com/stretchr/testify/assert"
-	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
 	"testing"
 )
 
 func TestPCGCentralizedGen(t *testing.T) {
-	dpf, err := optreedpf.InitFactory(128, 10)
-	assert.Nil(t, err)
-
-	pcg := NewPCG(128, 20, 2, 4, 16, dpf)
+	pcg, err := NewPCG(128, 20, 2, 4, 16)
 	assert.Nil(t, err)
 
 	_, err = pcg.CentralizedGen()
 	assert.Nil(t, err)
+}
+
+func TestPCGGen(t *testing.T) {
+	pcg, err := NewPCG(128, 15, 2, 4, 8)
+	assert.Nil(t, err)
+
+	seeds, err := pcg.CentralizedGen()
+	assert.Nil(t, err)
+	assert.NotNil(t, seeds)
+
+	eval0, err := pcg.Eval(seeds[0])
+	assert.Nil(t, err)
+	assert.NotNil(t, eval0)
 }

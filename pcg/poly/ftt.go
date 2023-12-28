@@ -55,7 +55,7 @@ func NewBLS12381FFT(n int) (*FFT, error) {
 	// we need to choose n+1, s.t. all multiplications of polynomials of degree n can be represented.
 	n = n + 1
 
-	// Choosing the appropriate root of unity for the given n is important for the FFT performance.
+	// Choosing the appropriate root of unity for the +given n is important for the FFT performance.
 	rootOfUnity := big.NewInt(0)
 	switch {
 	case n >= 1 && n <= 7: // For polynomials of degree < 2**8, naive multiplication is generally faster.
