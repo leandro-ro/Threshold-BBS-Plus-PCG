@@ -5,6 +5,7 @@ import (
 	bls12381 "github.com/kilic/bls12-381"
 	"math"
 	"math/big"
+	"math/rand"
 	"sort"
 )
 
@@ -19,13 +20,13 @@ type Polynomial struct {
 
 // NewFromFr converts slice of *bls12381.Fr to Polynomial representation.
 // The index of the slice is the power of x and the value is the coefficient.
-func NewFromFr(values []*bls12381.Fr) Polynomial {
-	return Polynomial{Coefficients: values, IsSparse: false, nonZeroPos: nil}
+func NewFromFr(values []*bls12381.Fr) *Polynomial {
+	return &Polynomial{Coefficients: values, IsSparse: false, nonZeroPos: nil}
 }
 
 // NewFromBig converts slice of *big.Int to Polynomial representation.
 // The index of the slice is the power of x and the value is the coefficient.
-func NewFromBig(values []*big.Int) Polynomial {
+func NewFromBig(values []*big.Int) *Polynomial {
 	rValues := make([]*bls12381.Fr, len(values))
 	for i, value := range values {
 		rValues[i] = bls12381.NewFr()
@@ -36,12 +37,12 @@ func NewFromBig(values []*big.Int) Polynomial {
 
 // NewSparse converts slice of *bls12381.Fr to Polynomial representation.
 // coefficients and exponents must have the same length.
-func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (Polynomial, error) {
+func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, error) {
 	if len(coefficients) != len(exponents) {
-		return Polynomial{}, fmt.Errorf("length of coefficients and exponents must match")
+		return nil, fmt.Errorf("length of coefficients and exponents must match")
 	}
 	if hasDuplicatesBigInt(exponents) {
-		return Polynomial{}, fmt.Errorf("duplicate exponents. each exponent must be unique")
+		return nil, fmt.Errorf("duplicate exponents. each exponent must be unique")
 	}
 
 	// Find the maximum exponent to determine the size of the Coefficients slice
@@ -70,15 +71,47 @@ func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (Polynomial, e
 	}
 
 	sort.Ints(nonZeroPos)
-	return Polynomial{
+	return &Polynomial{
 		Coefficients: polyCoefficients,
 		IsSparse:     true,
 		nonZeroPos:   nonZeroPos,
 	}, nil
 }
 
+// NewRandomPolynomial creates a random polynomial of the given degree.
+// Every coefficient is a random element in Fr, hence the polynomial is not sparse.
+func NewRandomPolynomial(rng *rand.Rand, degree int) (*Polynomial, error) {
+	coefficients := make([]*bls12381.Fr, degree)
+	for i := 0; i < degree; i++ {
+		randElement, err := bls12381.NewFr().Rand(rng)
+		if err != nil {
+			return nil, err
+		}
+		coefficients[i] = bls12381.NewFr()
+		coefficients[i].Set(randElement)
+	}
+	return NewFromFr(coefficients), nil
+}
+
 // Equal checks if two polynomials are equal.
-func (a *Polynomial) Equal(b Polynomial) bool {
+func (a *Polynomial) Equal(b *Polynomial) bool {
+	// If both polynomials are sparse, we can compare the non-zero coefficients
+	if a.IsSparse && b.IsSparse {
+		if len(a.nonZeroPos) != len(b.nonZeroPos) {
+			return false
+		}
+		for i := range a.nonZeroPos {
+			if a.nonZeroPos[i] != b.nonZeroPos[i] {
+				return false
+			}
+			if !a.getCoefficient(a.nonZeroPos[i]).Equal(b.getCoefficient(b.nonZeroPos[i])) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// If both polynomials are not sparse, we can compare the coefficients directly
 	if len(a.Coefficients) != len(b.Coefficients) {
 		return false
 	}
@@ -91,9 +124,10 @@ func (a *Polynomial) Equal(b Polynomial) bool {
 }
 
 // Add adds two polynomials and stores the result in the first polynomial.
-func (a *Polynomial) Add(b Polynomial) Polynomial {
+func (a *Polynomial) Add(b *Polynomial) *Polynomial {
 	maxLen := max(len(a.Coefficients), len(b.Coefficients))
-	rValues := make([]*bls12381.Fr, maxLen)
+	newCoefficients := make([]*bls12381.Fr, maxLen)
+	nonZeroPos := make([]int, maxLen)
 
 	for i := 0; i < maxLen; i++ {
 		coefficientA := bls12381.NewFr()
@@ -108,15 +142,23 @@ func (a *Polynomial) Add(b Polynomial) Polynomial {
 		} else {
 			coefficientB.Zero()
 		}
-		rValues[i] = bls12381.NewFr()
-		rValues[i].Add(coefficientA, coefficientB)
+		newCoefficients[i] = bls12381.NewFr()
+		newCoefficients[i].Add(coefficientA, coefficientB)
+		if a.IsSparse {
+			if !newCoefficients[i].IsZero() {
+				nonZeroPos[i] = i
+			}
+		}
 	}
-	a.Coefficients = rValues
-	return NewFromFr(rValues)
+	a.Coefficients = newCoefficients
+	if a.IsSparse {
+		a.nonZeroPos = nonZeroPos
+	}
+	return NewFromFr(newCoefficients)
 }
 
 // Sub subtracts two polynomials and stores the result in the first polynomial.
-func (a *Polynomial) Sub(b Polynomial) Polynomial {
+func (a *Polynomial) Sub(b *Polynomial) *Polynomial {
 	maxLen := max(len(a.Coefficients), len(b.Coefficients))
 	rValues := make([]*bls12381.Fr, maxLen)
 
@@ -141,7 +183,7 @@ func (a *Polynomial) Sub(b Polynomial) Polynomial {
 // If both polynomials are sparse, it uses more efficient sparse multiplication.
 // If the length of the polynomials is less than 256, it uses naive multiplication.
 // Otherwise, it uses FFT.
-func (a *Polynomial) Mul(b Polynomial) (Polynomial, error) {
+func (a *Polynomial) Mul(b *Polynomial) (*Polynomial, error) {
 	// Ensure both polynomials have the same length
 	aLen := len(a.Coefficients)
 	bLen := len(b.Coefficients)
@@ -180,7 +222,7 @@ func (a *Polynomial) Mul(b Polynomial) (Polynomial, error) {
 }
 
 // mulNaive multiplies two polynomials in O(n^2).
-func (a *Polynomial) mulNaive(b Polynomial) (Polynomial, error) {
+func (a *Polynomial) mulNaive(b *Polynomial) (*Polynomial, error) {
 	rValues := make([]*bls12381.Fr, len(a.Coefficients)+len(b.Coefficients)-1)
 	for i := range rValues {
 		rValues[i] = bls12381.NewFr()
@@ -198,11 +240,11 @@ func (a *Polynomial) mulNaive(b Polynomial) (Polynomial, error) {
 }
 
 // mulSparse efficiently multiplies two sparse polynomials.
-func (a *Polynomial) mulSparse(b Polynomial) (Polynomial, error) {
+func (a *Polynomial) mulSparse(b *Polynomial) (*Polynomial, error) {
 	if len(a.Coefficients) != len(b.Coefficients) {
-		return Polynomial{}, fmt.Errorf("polynomials must have the same length")
+		return nil, fmt.Errorf("polynomials must have the same length")
 	} else if !(a.IsSparse && b.IsSparse) {
-		return Polynomial{}, fmt.Errorf("both polynomials must be sparse")
+		return nil, fmt.Errorf("both polynomials must be sparse")
 	}
 
 	// Determine the maximum index for the result polynomial
@@ -241,12 +283,13 @@ func (a *Polynomial) mulSparse(b Polynomial) (Polynomial, error) {
 	uniqueNonZeroPosResult := unique(nonZeroPosResult)
 
 	isSparse := true
-	if len(uniqueNonZeroPosResult) > 1024 {
+	if len(uniqueNonZeroPosResult) > 1024 { // We define a polynomial as sparse if it has less than 1024 non-zero coefficients
 		isSparse = false
 		uniqueNonZeroPosResult = nil
 	}
 
-	return Polynomial{
+	sort.Ints(uniqueNonZeroPosResult)
+	return &Polynomial{
 		Coefficients: rValues,
 		IsSparse:     isSparse,
 		nonZeroPos:   uniqueNonZeroPosResult,
@@ -254,19 +297,19 @@ func (a *Polynomial) mulSparse(b Polynomial) (Polynomial, error) {
 }
 
 // mulFast multiplies two polynomials in O(nlogn) using FFT.
-func (a *Polynomial) mulFast(b Polynomial) (Polynomial, error) {
+func (a *Polynomial) mulFast(b *Polynomial) (*Polynomial, error) {
 	if len(a.Coefficients) != len(b.Coefficients) {
-		return Polynomial{}, fmt.Errorf("polynomials must have the same length")
+		return nil, fmt.Errorf("polynomials must have the same length")
 	}
 
 	n := math.Ceil(math.Log2(float64(len(a.Coefficients))))
 	fft, err := NewBLS12381FFT(int(n))
 	if err != nil {
-		return Polynomial{}, err
+		return nil, err
 	}
 	resultBig, err := fft.MulPolysFFT(a.ToBig(), b.ToBig())
 	if err != nil {
-		return Polynomial{}, err
+		return nil, err
 	}
 	result := NewFromBig(resultBig)
 
@@ -275,7 +318,7 @@ func (a *Polynomial) mulFast(b Polynomial) (Polynomial, error) {
 
 // MulByConstant multiplies the polynomial by a constant.
 // It changes the original polynomial and returns a copy of it.
-func (a *Polynomial) MulByConstant(c *bls12381.Fr) Polynomial {
+func (a *Polynomial) MulByConstant(c *bls12381.Fr) *Polynomial {
 	if a.IsSparse { // Knowing the polynomial is sparse we can only multiply the non-zero coefficients
 		for _, pos := range a.nonZeroPos {
 			a.Coefficients[pos].Mul(a.Coefficients[pos], c)
@@ -298,7 +341,7 @@ func (a *Polynomial) ToBig() []*big.Int {
 }
 
 // Copy returns a copy of the polynomial.
-func (a *Polynomial) Copy() Polynomial {
+func (a *Polynomial) Copy() *Polynomial {
 	rValues := make([]*bls12381.Fr, len(a.Coefficients))
 	if a.IsSparse {
 		for _, pos := range a.nonZeroPos {

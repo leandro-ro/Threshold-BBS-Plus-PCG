@@ -14,14 +14,18 @@ func TestPCGCentralizedGen(t *testing.T) {
 }
 
 func TestPCGGen(t *testing.T) {
-	pcg, err := NewPCG(128, 15, 2, 4, 8)
+	pcg, err := NewPCG(128, 13, 2, 2, 4)
 	assert.Nil(t, err)
 
 	seeds, err := pcg.CentralizedGen()
 	assert.Nil(t, err)
 	assert.NotNil(t, seeds)
 
-	eval0, err := pcg.Eval(seeds[0])
+	randPolys, err := pcg.PickRandomPolynomials()
+	assert.Nil(t, err)
+	assert.NotNil(t, randPolys)
+
+	eval0, err := pcg.Eval(seeds[0], randPolys)
 	assert.Nil(t, err)
 	assert.NotNil(t, eval0)
 }

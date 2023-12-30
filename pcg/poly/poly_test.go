@@ -255,6 +255,15 @@ func TestMulPolyByConstant(t *testing.T) {
 	assert.True(t, expectedPoly.Equal(result))
 }
 
+func TestNewRandomPolynomial(t *testing.T) {
+	degree := 512
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	poly, err := NewRandomPolynomial(rng, degree)
+	assert.Nil(t, err)
+	assert.NotNil(t, poly)
+	assert.Equal(t, degree, len(poly.Coefficients))
+}
+
 func randomFrSlice(n int) []*bls12381.Fr {
 	slice := make([]*bls12381.Fr, n)
 

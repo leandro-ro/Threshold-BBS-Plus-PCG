@@ -116,30 +116,39 @@ func (p *PCG) CentralizedGen() ([]*Seed, error) {
 	return seeds, nil
 }
 
-func (p *PCG) Eval(seed *Seed) (*GeneratedTuples, error) {
+// Eval evaluates the PCG for the given seed based on a c random polynomials.
+func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error) {
+	if len(rand) != p.c {
+		return nil, fmt.Errorf("rand must hold c=%d polynomials but contains %d", p.c, len(rand))
+	}
+	one, _ := poly.NewSparse([]*bls12381.Fr{bls12381.NewFr().One()}, []*big.Int{big.NewInt(0)}) // = 1
+	if !rand[p.c-1].Equal(one) {
+		return nil, fmt.Errorf("rand must be a slice of polynomials with polynomial of the the last index rand[c-1] equal to 1")
+	}
+
 	// 1. Generate polynomials
 	u, err := p.constructPolys(seed.coefficients.beta, seed.exponents.omega)
 	if err != nil {
 		return nil, fmt.Errorf("step 1: failed to generate polynomials for u from beta and omega: %w", err)
 	}
-	//v, err := p.constructPolys(seed.coefficients.gamma, seed.exponents.eta)
-	//if err != nil {
-	//	return nil, fmt.Errorf("step 1: failed to generate polynomials for v from gamma and eta: %w", err)
-	//}
-	//w, err := p.constructPolys(seed.coefficients.epsilon, seed.exponents.phi)
-	//if err != nil {
-	//	return nil, fmt.Errorf("step 1: failed to generate polynomials for w from epsilon and phi: %w", err)
-	//}
+	v, err := p.constructPolys(seed.coefficients.gamma, seed.exponents.eta)
+	if err != nil {
+		return nil, fmt.Errorf("step 1: failed to generate polynomials for v from gamma and eta: %w", err)
+	}
+	k, err := p.constructPolys(seed.coefficients.epsilon, seed.exponents.phi)
+	if err != nil {
+		return nil, fmt.Errorf("step 1: failed to generate polynomials for k from epsilon and phi: %w", err)
+	}
 
-	// 2. Compute VOLE seed
+	// 2. Process VOLE seed
 	utilde := make([]*poly.Polynomial, p.c)
 	for r := 0; r < p.c; r++ {
 		ur := u[r].Copy()          // We need unmodified u[r] later on, so we copy it
 		ur.MulByConstant(seed.ski) // u[r] * sk[i]
-		for i := 0; i < p.n; i++ {
+		for i := 0; i < p.n; i++ { // Ony cross terms
 			for j := 0; j < p.n; j++ {
 				if i != j {
-					fmt.Println("progress: ", i, j, r, "of", p.n, p.n, p.c)
+					fmt.Println("VOLE progress: ", i, j, r, "of", p.n, p.n, p.c)
 					feval0, err := p.dspfN.FullEvalFast(seed.U[i][j][r].Key0)
 					if err != nil {
 						return nil, err
@@ -161,10 +170,126 @@ func (p *PCG) Eval(seed *Seed) (*GeneratedTuples, error) {
 				}
 			}
 		}
-		utilde[r] = &ur
+		utilde[r] = ur
+	}
+
+	// 3. Process first OLE seed
+	w := make([][]*poly.Polynomial, p.c)
+	for r := 0; r < p.c; r++ {
+		w[r] = make([]*poly.Polynomial, p.c)
+		for s := 0; s < p.c; s++ {
+			ur := u[r].Copy()      // We need unmodified u[r] later on, so we copy it
+			vs := v[s].Copy()      // We need unmodified v[s] later on, so we copy it
+			wrs, err := ur.Mul(vs) // u[r] * v[s]
+			if err != nil {
+				return nil, err
+			}
+			for i := 0; i < p.n; i++ {
+				for j := 0; j < p.n; j++ {
+					if i != j { // Ony cross terms
+						fmt.Println("OLE #1 progress: ", i, j, r, "of", p.n, p.n, p.c)
+						feval0, err := p.dspf2N.FullEvalFast(seed.C[i][j][r][s].Key0)
+						if err != nil {
+							return nil, err
+						}
+						feval1, err := p.dspf2N.FullEvalFast(seed.C[i][j][r][s].Key1)
+						if err != nil {
+							return nil, err
+						}
+
+						res, err := p.dspf2N.CombineMultipleResults(feval0, feval1)
+						if len(res) != p.t*p.t {
+							return nil, fmt.Errorf("step 2: length of OLE DSPF FullEval is %d but is expected to be t^2=%d", len(res), p.t*p.t)
+						}
+
+						err = wrs.SparseBigAdd(res)
+						if err != nil {
+							return nil, err
+						}
+					}
+				}
+			}
+			w[r][s] = wrs
+		}
+	}
+
+	// 3. Process second OLE seed
+	m := make([][]*poly.Polynomial, p.c)
+	for r := 0; r < p.c; r++ {
+		m[r] = make([]*poly.Polynomial, p.c)
+		for s := 0; s < p.c; s++ {
+			ur := u[r].Copy()      // We need unmodified u[r] later on, so we copy it
+			ks := k[s].Copy()      // We need unmodified k[s] later on, so we copy it
+			mrs, err := ur.Mul(ks) // u[r] * k[s]
+			if err != nil {
+				return nil, err
+			}
+			for i := 0; i < p.n; i++ {
+				for j := 0; j < p.n; j++ {
+					if i != j { // Ony cross terms
+						fmt.Println("OLE #2 progress: ", i, j, r, "of", p.n, p.n, p.c)
+						feval0, err := p.dspf2N.FullEvalFast(seed.V[i][j][r][s].Key0)
+						if err != nil {
+							return nil, err
+						}
+						feval1, err := p.dspf2N.FullEvalFast(seed.V[i][j][r][s].Key1)
+						if err != nil {
+							return nil, err
+						}
+
+						res, err := p.dspf2N.CombineMultipleResults(feval0, feval1)
+						if len(res) != p.t*p.t {
+							return nil, fmt.Errorf("step 2: length of OLE DSPF FullEval is %d but is expected to be t^2=%d", len(res), p.t*p.t)
+						}
+
+						err = mrs.SparseBigAdd(res)
+						if err != nil {
+							return nil, err
+						}
+						// print mrs non-zero elements
+
+					}
+				}
+			}
+			m[r][s] = mrs
+		}
+	}
+
+	// 4. Calculate BBS+ Tuples from the random polynomials in a
+	// 4 a) x_i
+	x := one.Copy() // start with 1
+	for j := 0; j < p.c; j++ {
+		ajuj, err := rand[j].Mul(u[j]) // a[j] * u[j] TODO: Implement partly sparse multiplication (a is not sparse, u[r] is)
+		if err != nil {
+			return nil, err
+		}
+		x.Add(ajuj)
 	}
 
 	return nil, nil
+}
+
+// PickRandomPolynomials picks c-1 random polynomials of degree N. The last polynomial is always 1.
+// This function is intended to be used to generate the random polynomials for calling Eval.
+func (p *PCG) PickRandomPolynomials() ([]*poly.Polynomial, error) {
+	numElements := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
+
+	polys := make([]*poly.Polynomial, p.c)
+	for i := 0; i < p.c-1; i++ {
+		nPoly, err := poly.NewRandomPolynomial(p.rng, int(numElements.Int64()))
+		if err != nil {
+			return nil, err
+		}
+		polys[i] = nPoly
+	}
+	// Set last polynomial to 1
+	one, err := poly.NewSparse([]*bls12381.Fr{bls12381.NewFr().One()}, []*big.Int{big.NewInt(0)}) // = 1
+	if err != nil {
+		return nil, err
+	}
+	polys[p.c-1] = one
+
+	return polys, nil
 }
 
 // embedVOLECorrelations embeds VOLE correlations into DSPF keys.
@@ -312,7 +437,7 @@ func (p *PCG) constructPolys(coefficients [][]*bls12381.Fr, exponents [][]*big.I
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate polynomial: %w", err)
 		}
-		res[r] = &generatedPoly
+		res[r] = generatedPoly
 	}
 
 	return res, nil
