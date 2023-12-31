@@ -5,8 +5,10 @@ import (
 	bls12381 "github.com/kilic/bls12-381"
 	"math"
 	"math/big"
+	"math/rand"
 )
 
+// Polynomial represents a polynomial in the form of a map: exponent -> coefficient.
 type Polynomial struct {
 	coefficients map[int]*bls12381.Fr // coefficients of the polynomial in the form of a map: exponent -> coefficient
 }
@@ -66,12 +68,29 @@ func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, 
 	return p, nil
 }
 
-func (p *Polynomial) Degree() (int, error) {
-	max, found := maxKey(p.coefficients)
-	if !found {
-		return -1, fmt.Errorf("polynomial has no coefficients")
+// NewRandomPolynomial creates a random polynomial of the given degree.
+// Every coefficient is a random element in Fr, hence the polynomial is not sparse.
+func NewRandomPolynomial(rng *rand.Rand, degree int) (*Polynomial, error) {
+	coefficients := make([]*bls12381.Fr, degree)
+	for i := 0; i < degree; i++ {
+		randElement, err := bls12381.NewFr().Rand(rng)
+		if err != nil {
+			return nil, err
+		}
+		coefficients[i] = bls12381.NewFr()
+		coefficients[i].Set(randElement)
 	}
-	return max, nil
+	return NewFromFr(coefficients), nil
+}
+
+// Degree returns the degree of the polynomial.
+// If the polynomial is empty, it returns an error.
+func (p *Polynomial) Degree() (int, error) {
+	deg, found := maxKey(p.coefficients)
+	if !found {
+		return -1, fmt.Errorf("polynomial is empty")
+	}
+	return deg, nil
 }
 
 // Equal checks if two polynomials are equal.
@@ -87,6 +106,19 @@ func (p *Polynomial) Equal(q *Polynomial) bool {
 	}
 
 	return true
+}
+
+// Copy returns a copy of the polynomial the function is being called on.
+func (p *Polynomial) Copy() *Polynomial {
+	newPoly := &Polynomial{
+		coefficients: make(map[int]*bls12381.Fr),
+	}
+
+	for exp, coeff := range p.coefficients {
+		newPoly.coefficients[exp] = bls12381.NewFr().Set(coeff)
+	}
+
+	return newPoly
 }
 
 // Add adds two polynomials and stores the result in the polynomial the function is being called on.
@@ -139,19 +171,6 @@ func (p *Polynomial) Sub(q *Polynomial) *Polynomial {
 	return p.Copy()
 }
 
-// Copy returns a copy of the polynomial the function is being called on.
-func (p *Polynomial) Copy() *Polynomial {
-	newPoly := &Polynomial{
-		coefficients: make(map[int]*bls12381.Fr),
-	}
-
-	for exp, coeff := range p.coefficients {
-		newPoly.coefficients[exp] = bls12381.NewFr().Set(coeff)
-	}
-
-	return newPoly
-}
-
 // MulByConstant multiplies the polynomial by a constant.
 // It changes the original polynomial and returns a copy of it.
 func (p *Polynomial) MulByConstant(constant *bls12381.Fr) *Polynomial {
@@ -164,7 +183,7 @@ func (p *Polynomial) MulByConstant(constant *bls12381.Fr) *Polynomial {
 // Mul multiplies two polynomials and stores the result in the polynomial the function is being called on.
 // It also returns the result as a new polynomial.
 func (p *Polynomial) Mul(q *Polynomial) (*Polynomial, error) {
-	if len(p.coefficients) > 512 && len(q.coefficients) > 512 {
+	if len(p.coefficients) > 1024 && len(q.coefficients) > 1024 {
 		return p.mulFFT(q)
 	} else {
 		return p.mulNaive(q), nil
@@ -174,11 +193,10 @@ func (p *Polynomial) Mul(q *Polynomial) (*Polynomial, error) {
 // mulNaive multiplies two polynomials using the naive method in O(n^2).
 // note that this can be faster for polynomials with a small number of coefficients.
 func (p *Polynomial) mulNaive(q *Polynomial) *Polynomial {
-	coeffsQ := polyAsCoefficients(q)           // Convert q to coefficients slice, s.t. we can iterate through it more efficiently
 	resultCoeffs := make(map[int]*bls12381.Fr) // Create a new map for the result
 
 	for expP, coeffP := range p.coefficients { // Iterate through map of p
-		for expQ, coeffQ := range coeffsQ { // Iterate through slice of q. This is more efficient than iterating through map of q.
+		for expQ, coeffQ := range q.coefficients { // Iterate through slice of q. This is more efficient than iterating through map of q.
 			if !coeffQ.IsZero() {
 				exp := expP + expQ
 				product := bls12381.NewFr()
