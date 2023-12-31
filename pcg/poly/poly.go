@@ -181,13 +181,31 @@ func (p *Polynomial) MulByConstant(constant *bls12381.Fr) *Polynomial {
 }
 
 // Mul multiplies two polynomials and stores the result in the polynomial the function is being called on.
-// It also returns the result as a new polynomial.
+// It always returns the result as a new polynomial.
 func (p *Polynomial) Mul(q *Polynomial) (*Polynomial, error) {
 	if len(p.coefficients) > 1024 && len(q.coefficients) > 1024 {
 		return p.mulFFT(q)
 	} else {
 		return p.mulNaive(q), nil
 	}
+}
+
+// Mul returns the product of two polynomials without modifying the original polynomials.
+func Mul(p, q *Polynomial) (*Polynomial, error) {
+	copyP := p.Copy() // Ensure that the original polynomials are not modified
+	return copyP.Mul(q)
+}
+
+// Add returns the sum of two polynomials without modifying the original polynomials.
+func Add(p, q *Polynomial) *Polynomial {
+	copyP := p.Copy() // Ensure that the original polynomials are not modified
+	return copyP.Add(q)
+}
+
+// Sub returns the difference of two polynomials without modifying the original polynomials.
+func Sub(p, q *Polynomial) *Polynomial {
+	copyP := p.Copy() // Ensure that the original polynomials are not modified
+	return copyP.Sub(q)
 }
 
 // mulNaive multiplies two polynomials using the naive method in O(n^2).

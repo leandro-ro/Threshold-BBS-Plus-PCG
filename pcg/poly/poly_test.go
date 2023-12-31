@@ -168,6 +168,34 @@ func TestMulPolysNaive(t *testing.T) {
 	assert.True(t, expected.Equal(result))
 }
 
+func TestSeparateMul(t *testing.T) {
+	n := 512
+	slice1 := randomFrSlice(n)
+	poly1 := NewFromFr(slice1)
+	poly1Expected := poly1.Copy()
+
+	slice2 := randomFrSlice(n)
+	poly2 := NewFromFr(slice2)
+	poly2Expected := poly2.Copy()
+
+	result1, err := Mul(poly1, poly2)
+	assert.Nil(t, err)
+	assert.NotNil(t, result1)
+
+	// Check that the original polynomials are not changed.
+	assert.True(t, poly1.Equal(poly1Expected))
+	assert.True(t, poly2.Equal(poly2Expected))
+
+	// Compare with multiplication on objects.
+	result2, err := poly1.Mul(poly2)
+	assert.Nil(t, err)
+	assert.NotNil(t, result2)
+
+	assert.True(t, result1.Equal(result2))
+	assert.False(t, poly1.Equal(poly1Expected))
+	assert.True(t, poly2.Equal(poly2Expected))
+}
+
 func TestMulPolysFFT(t *testing.T) {
 	// Test polynomial a: 12x^4 + 25x^3 + 4x^2 + 17
 	aValues := []*big.Int{big.NewInt(17), big.NewInt(0), big.NewInt(4), big.NewInt(25), big.NewInt(12)}

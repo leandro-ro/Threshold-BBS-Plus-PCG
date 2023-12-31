@@ -163,7 +163,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 						return nil, fmt.Errorf("step 2: length of VOLE DSPF FullEval is %d but is expected to be t=%d", len(res), p.t)
 					}
 
-					err = ur.SparseBigAdd(res)
+					_, err = ur.SparseBigAdd(res)
 					if err != nil {
 						return nil, err
 					}
@@ -202,7 +202,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 							return nil, fmt.Errorf("step 2: length of OLE DSPF FullEval is %d but is expected to be t^2=%d", len(res), p.t*p.t)
 						}
 
-						err = wrs.SparseBigAdd(res)
+						_, err = wrs.SparseBigAdd(res)
 						if err != nil {
 							return nil, err
 						}
@@ -242,7 +242,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 							return nil, fmt.Errorf("step 2: length of OLE DSPF FullEval is %d but is expected to be t^2=%d", len(res), p.t*p.t)
 						}
 
-						err = mrs.SparseBigAdd(res)
+						_, err = mrs.SparseBigAdd(res)
 						if err != nil {
 							return nil, err
 						}
@@ -259,7 +259,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	// 4 a) x_i
 	x := one.Copy() // start with 1
 	for j := 0; j < p.c; j++ {
-		ajuj, err := rand[j].Mul(u[j]) // a[j] * u[j] TODO: Implement partly sparse multiplication (a is not sparse, u[r] is)
+		ajuj, err := poly.Mul(rand[j], u[j]) // a[j] * u[j]
 		if err != nil {
 			return nil, err
 		}
