@@ -68,6 +68,13 @@ func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, 
 	return p, nil
 }
 
+// New returns a new empty polynomial.
+func New() *Polynomial {
+	return &Polynomial{
+		coefficients: make(map[int]*bls12381.Fr),
+	}
+}
+
 // NewRandomPolynomial creates a random polynomial of the given degree.
 // Every coefficient is a random element in Fr, hence the polynomial is not sparse.
 func NewRandomPolynomial(rng *rand.Rand, degree int) (*Polynomial, error) {

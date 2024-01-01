@@ -91,6 +91,16 @@ func TestAddPolys(t *testing.T) {
 	}
 }
 
+func TestAddEmpty(t *testing.T) {
+	n := 512
+	slice := randomFrSlice(n)
+	poly1 := New()
+	poly2 := NewFromFr(slice)
+
+	result := poly1.Add(poly2)
+	assert.True(t, poly1.Equal(result))
+}
+
 func TestSubPolys(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)

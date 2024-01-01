@@ -256,15 +256,74 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	}
 
 	// 4. Calculate BBS+ Tuples from the random polynomials in a
-	// 4 a) x_i
-	x := one.Copy() // start with 1
-	for j := 0; j < p.c; j++ {
-		ajuj, err := poly.Mul(rand[j], u[j]) // a[j] * u[j]
+	ai := poly.New()
+	for j := 0; j < p.c-1; j++ {
+		prod, err := poly.Mul(rand[j], u[j])
 		if err != nil {
 			return nil, err
 		}
-		x.Add(ajuj)
+		ai.Add(prod)
 	}
+	ai.Add(u[p.c-1]) // rand[c-1] is always 1, we can just add u[c-1] it
+
+	si := poly.New()
+	for j := 0; j < p.c-1; j++ {
+		prod, err := poly.Mul(rand[j], v[j])
+		if err != nil {
+			return nil, err
+		}
+		si.Add(prod)
+	}
+	si.Add(v[p.c-1]) // rand[c-1] is always 1, we can just add v[c-1] it
+
+	ei := poly.New()
+	for j := 0; j < p.c-1; j++ {
+		prod, err := poly.Mul(rand[j], k[j])
+		if err != nil {
+			return nil, err
+		}
+		ei.Add(prod)
+	}
+	ei.Add(k[p.c-1]) // rand[c-1] is always 1, we can just add k[c-1] it
+
+	delta1i := poly.New()
+	for j := 0; j < p.c-1; j++ {
+		prod, err := poly.Mul(rand[j], utilde[j])
+		if err != nil {
+			return nil, err
+		}
+		delta1i.Add(prod)
+	}
+	delta1i.Add(utilde[p.c-1]) // rand[c-1] is always 1, we can just add k[c-1] it
+
+	oprand, err := outerProductPoly(rand, rand)
+	if err != nil {
+		return nil, err
+	}
+
+	alphai := poly.New()
+	for j := 0; j < p.c-1; j++ {
+		for k := 0; k < p.c-1; k++ {
+			prod, err := poly.Mul(oprand[j*p.c+k], w[j][k])
+			if err != nil {
+				return nil, err
+			}
+			alphai.Add(prod)
+		}
+	}
+	alphai.Add(w[p.c-1][p.c-1]) // oprand[c*c-1] is always 1, we can just add w[c-1][c-1] it
+
+	delta0i := poly.New()
+	for j := 0; j < p.c-1; j++ {
+		for k := 0; k < p.c-1; k++ {
+			prod, err := poly.Mul(oprand[j*p.c+k], m[j][k])
+			if err != nil {
+				return nil, err
+			}
+			delta0i.Add(prod)
+		}
+	}
+	delta0i.Add(m[p.c-1][p.c-1]) // oprand[c*c-1] is always 1, we can just add m[c-1][c-1] it
 
 	return nil, nil
 }
@@ -455,4 +514,18 @@ func hasDuplicates(slice []*big.Int) bool {
 		seen[strValue] = struct{}{}
 	}
 	return false
+}
+
+func outerProductPoly(a, b []*poly.Polynomial) ([]*poly.Polynomial, error) {
+	res := make([]*poly.Polynomial, len(a)*len(b))
+	for i, aPoly := range a {
+		for j, bPoly := range b {
+			prod, err := poly.Mul(aPoly, bPoly)
+			if err != nil {
+				return nil, err
+			}
+			res[i*len(b)+j] = prod
+		}
+	}
+	return res, nil
 }
