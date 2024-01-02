@@ -20,7 +20,9 @@ func NewFromFr(values []*bls12381.Fr) *Polynomial {
 	for i, v := range values {
 		// Ensure that only non-zero coefficients are stored for efficiency.
 		if !v.IsZero() {
-			coefficients[i] = v
+			coefficients[i] = bls12381.NewFr()
+			val := bls12381.NewFr().FromBytes(v.ToBytes())
+			coefficients[i].Set(val)
 		}
 	}
 
@@ -36,7 +38,8 @@ func NewFromBig(values []*big.Int) *Polynomial {
 	for i, value := range values {
 		// Do not check for zero values here, as NewFromFr will do.
 		rValues[i] = bls12381.NewFr()
-		rValues[i].FromBytes(value.Bytes())
+		val := bls12381.NewFr().FromBytes(value.Bytes())
+		rValues[i].Set(val)
 	}
 	return NewFromFr(rValues)
 }
@@ -50,7 +53,7 @@ func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, 
 		return nil, fmt.Errorf("length of coefficients and exponents must be equal")
 	}
 	if hasDuplicates(exponents) {
-		return nil, fmt.Errorf("exponents must not be unique")
+		return nil, fmt.Errorf("exponents must be unique")
 	}
 
 	p := &Polynomial{
@@ -60,8 +63,10 @@ func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, 
 	for i, c := range coefficients {
 		// Ensure that only non-zero coefficients are stored for efficiency.
 		if !c.IsZero() {
-			val := bls12381.NewFr().Set(c)
-			p.coefficients[int(exponents[i].Int64())] = val
+			index := int(exponents[i].Int64())
+			p.coefficients[index] = bls12381.NewFr()
+			val := bls12381.NewFr().FromBytes(c.ToBytes())
+			p.coefficients[index].Set(val)
 		}
 	}
 
@@ -138,7 +143,7 @@ func (p *Polynomial) Add(q *Polynomial) *Polynomial {
 				delete(p.coefficients, exp)
 			}
 		} else {
-			p.coefficients[exp] = bls12381.NewFr().Set(coeff) // Copy coefficient
+			p.coefficients[exp] = bls12381.NewFr().FromBytes(coeff.ToBytes())
 		}
 	}
 	return p.Copy()
@@ -171,7 +176,7 @@ func (p *Polynomial) Sub(q *Polynomial) *Polynomial {
 				delete(p.coefficients, exp)
 			}
 		} else {
-			p.coefficients[exp] = bls12381.NewFr().Set(coeff) // Copy coefficient
+			p.coefficients[exp] = bls12381.NewFr().FromBytes(coeff.ToBytes()) // Copy coefficient
 			p.coefficients[exp].Neg(p.coefficients[exp])
 		}
 	}
@@ -215,6 +220,17 @@ func Sub(p, q *Polynomial) *Polynomial {
 	return copyP.Sub(q)
 }
 
+// Sparseness returns the sparseness of the polynomial.
+// It returns the number of non-zero coefficients.
+// E.g. x^2 + 2 = 1*x^2 + 0*x^1 + 2*x^0 -> 2 non-zero coefficients, hence 2-sparse.
+func (p *Polynomial) Sparseness() int {
+	degree, err := p.Degree()
+	if err != nil {
+		return 0
+	}
+	return degree + 1 - len(p.coefficients) // +1 as we need to also account for the constant term, e.g. x^2 + 2 -> (degree: 2) + 1 - (coeff len: 1) = 2 sparse
+}
+
 // mulNaive multiplies two polynomials using the naive method in O(n^2).
 // note that this can be faster for polynomials with a small number of coefficients.
 func (p *Polynomial) mulNaive(q *Polynomial) *Polynomial {
@@ -239,8 +255,8 @@ func (p *Polynomial) mulNaive(q *Polynomial) *Polynomial {
 		}
 	}
 
-	p.coefficients = resultCoeffs // Modify the original polynomial
-	return p.Copy()
+	p.coefficients = resultCoeffs
+	return p
 }
 
 // mulFFT multiplies two polynomials using the FFT  in O(nlogn).
@@ -260,9 +276,8 @@ func (p *Polynomial) mulFFT(q *Polynomial) (*Polynomial, error) {
 		return nil, err
 	}
 
-	// Modify the original polynomial and return a copy of it.
 	result := NewFromBig(resultBig)
-	p.coefficients = result.Copy().coefficients
+	p.coefficients = result.coefficients
 	return result, nil
 }
 
@@ -275,7 +290,7 @@ func polyAsCoefficients(p *Polynomial) []*bls12381.Fr {
 	for i := 0; i < degree+1; i++ {
 		val, ok := p.coefficients[i]
 		if ok {
-			coefficients[i] = bls12381.NewFr().Set(val)
+			coefficients[i] = bls12381.NewFr().FromBytes(val.ToBytes())
 		} else {
 			coefficients[i] = bls12381.NewFr().Zero()
 		}

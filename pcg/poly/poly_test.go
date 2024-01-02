@@ -69,6 +69,26 @@ func TestDegree(t *testing.T) {
 	assert.Equal(t, n-1, deg)
 }
 
+func TestSparseness(t *testing.T) {
+	n := 512
+	slice1 := randomFrSlice(n)
+
+	for i := 0; i < n; i++ {
+		if i%2 == 0 { // Set every second coefficient to zero.
+			slice1[i] = bls12381.NewFr()
+			slice1[i].Zero()
+		}
+	}
+
+	poly1 := NewFromFr(slice1)
+	assert.Equal(t, n/2, poly1.Sparseness())
+
+	n = 16
+	slice2 := randomFrSlice(n) // Full polynomial.
+	poly2 := NewFromFr(slice2)
+	assert.Equal(t, 0, poly2.Sparseness())
+}
+
 func TestAddPolys(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)

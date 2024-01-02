@@ -178,9 +178,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	for r := 0; r < p.c; r++ {
 		w[r] = make([]*poly.Polynomial, p.c)
 		for s := 0; s < p.c; s++ {
-			ur := u[r].Copy()      // We need unmodified u[r] later on, so we copy it
-			vs := v[s].Copy()      // We need unmodified v[s] later on, so we copy it
-			wrs, err := ur.Mul(vs) // u[r] * v[s]
+			wrs, err := poly.Mul(u[r], v[s])
 			if err != nil {
 				return nil, err
 			}
@@ -218,9 +216,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	for r := 0; r < p.c; r++ {
 		m[r] = make([]*poly.Polynomial, p.c)
 		for s := 0; s < p.c; s++ {
-			ur := u[r].Copy()      // We need unmodified u[r] later on, so we copy it
-			ks := k[s].Copy()      // We need unmodified k[s] later on, so we copy it
-			mrs, err := ur.Mul(ks) // u[r] * k[s]
+			mrs, err := poly.Mul(u[r], k[s])
 			if err != nil {
 				return nil, err
 			}
@@ -264,7 +260,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		}
 		ai.Add(prod)
 	}
-	ai.Add(u[p.c-1]) // rand[c-1] is always 1, we can just add u[c-1] it
+	ai.Add(u[p.c-1]) // rand[c-1] is always 1, hence instead of multiplying we can just add
 
 	si := poly.New()
 	for j := 0; j < p.c-1; j++ {
@@ -284,7 +280,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		}
 		ei.Add(prod)
 	}
-	ei.Add(k[p.c-1]) // rand[c-1] is always 1, we can just add k[c-1] it
+	ei.Add(k[p.c-1]) // rand[c-1] is always 1, hence instead of multiplying we can just add
 
 	delta1i := poly.New()
 	for j := 0; j < p.c-1; j++ {
@@ -294,9 +290,9 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		}
 		delta1i.Add(prod)
 	}
-	delta1i.Add(utilde[p.c-1]) // rand[c-1] is always 1, we can just add k[c-1] it
+	delta1i.Add(utilde[p.c-1]) // rand[c-1] is always 1, hence instead of multiplying we can just add
 
-	oprand, err := outerProductPoly(rand, rand)
+	oprand, err := outerProductPoly(rand, rand) // This is probably the only time FFT is used for multiplication
 	if err != nil {
 		return nil, err
 	}
