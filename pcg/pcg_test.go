@@ -14,7 +14,7 @@ func TestPCGCentralizedGen(t *testing.T) {
 }
 
 func TestPCGGen(t *testing.T) {
-	pcg, err := NewPCG(128, 13, 2, 2, 4)
+	pcg, err := NewPCG(128, 10, 2, 2, 4)
 	assert.Nil(t, err)
 
 	seeds, err := pcg.CentralizedGen()

@@ -105,9 +105,9 @@ func TestAddPolys(t *testing.T) {
 		expected[i].Set(e)
 	}
 
-	result := poly1.Add(poly2)
+	poly1.Add(poly2)
 	for i := 0; i < n; i++ {
-		assert.Equal(t, expected[i], result.coefficients[i])
+		assert.Equal(t, expected[i], poly1.coefficients[i])
 	}
 }
 
@@ -117,8 +117,8 @@ func TestAddEmpty(t *testing.T) {
 	poly1 := New()
 	poly2 := NewFromFr(slice)
 
-	result := poly1.Add(poly2)
-	assert.True(t, poly1.Equal(result))
+	result := Add(poly1, poly2)
+	assert.True(t, poly2.Equal(result))
 }
 
 func TestSubPolys(t *testing.T) {
@@ -137,9 +137,9 @@ func TestSubPolys(t *testing.T) {
 		expected[i].Set(e)
 	}
 
-	result := poly1.Sub(poly2)
+	poly1.Sub(poly2)
 	for i := 0; i < n; i++ {
-		assert.Equal(t, expected[i], result.coefficients[i])
+		assert.Equal(t, expected[i], poly1.coefficients[i])
 	}
 }
 
@@ -157,7 +157,7 @@ func TestSubEqual(t *testing.T) {
 		expected[i].Set(e)
 	}
 
-	result := poly1.Sub(poly2) // should be zero
+	result := Sub(poly1, poly2) // should be zero
 	emptyPoly := &Polynomial{}
 	assert.True(t, result.Equal(emptyPoly))
 }
@@ -171,10 +171,10 @@ func TestAddSubPolys(t *testing.T) {
 	poly2 := NewFromFr(slice2)
 
 	poly1.Add(poly2)
-	result := poly1.Sub(poly2)
+	poly1.Sub(poly2)
 
 	for i := 0; i < n; i++ {
-		assert.Equal(t, slice1[i], result.coefficients[i])
+		assert.Equal(t, slice1[i], poly1.coefficients[i])
 	}
 }
 
@@ -187,15 +187,16 @@ func TestMulPolysNaive(t *testing.T) {
 	bValues := []*big.Int{big.NewInt(0), big.NewInt(45), big.NewInt(0), big.NewInt(0), big.NewInt(84)}
 	bPoly := NewFromBig(bValues)
 
-	result := aPoly.mulNaive(bPoly)
-	assert.NotNil(t, result)
+	err := aPoly.mulNaive(bPoly)
+	assert.Nil(t, err)
+	assert.NotNil(t, aPoly)
 
 	// Expected result: 1008x^8 + 2100x^7 + 336x^6 + 540x^5 + 2553x^4 + 180x^3 + 765x
 	expectedValues := []*big.Int{big.NewInt(0), big.NewInt(765), big.NewInt(0), big.NewInt(180), big.NewInt(2553), big.NewInt(540), big.NewInt(336), big.NewInt(2100), big.NewInt(1008)}
 	expected := NewFromBig(expectedValues)
 
-	assert.Equal(t, len(expected.coefficients), len(result.coefficients))
-	assert.True(t, expected.Equal(result))
+	assert.Equal(t, len(expected.coefficients), len(aPoly.coefficients))
+	assert.True(t, expected.Equal(aPoly))
 }
 
 func TestSeparateMul(t *testing.T) {
@@ -217,11 +218,11 @@ func TestSeparateMul(t *testing.T) {
 	assert.True(t, poly2.Equal(poly2Expected))
 
 	// Compare with multiplication on objects.
-	result2, err := poly1.Mul(poly2)
+	err = poly1.Mul(poly2) // result stored in poly1
 	assert.Nil(t, err)
-	assert.NotNil(t, result2)
+	assert.NotNil(t, poly1)
 
-	assert.True(t, result1.Equal(result2))
+	assert.True(t, result1.Equal(poly1))
 	assert.False(t, poly1.Equal(poly1Expected))
 	assert.True(t, poly2.Equal(poly2Expected))
 }
@@ -235,7 +236,8 @@ func TestMulPolysFFT(t *testing.T) {
 	bValues := []*big.Int{big.NewInt(0), big.NewInt(45), big.NewInt(0), big.NewInt(0), big.NewInt(84)}
 	bPoly := NewFromBig(bValues)
 
-	result, err := aPoly.mulFFT(bPoly)
+	result := aPoly.Copy()
+	err := result.mulFFT(bPoly)
 	assert.Nil(t, err)
 	assert.NotNil(t, result)
 
@@ -255,11 +257,12 @@ func TestMulPolyFTTEqual(t *testing.T) {
 	slice2 := randomFrSlice(n)
 	poly2 := NewFromFr(slice2)
 
-	p1 := poly1.Copy()
-	result1 := p1.mulNaive(poly2)
+	result1 := poly1.Copy()
+	err := result1.mulNaive(poly2)
+	assert.Nil(t, err)
 
-	p1 = poly1.Copy()
-	result2, err := p1.mulFFT(poly2)
+	result2 := poly1.Copy()
+	err = result2.mulFFT(poly2)
 	assert.Nil(t, err)
 
 	assert.True(t, result1.Equal(result2))
@@ -282,14 +285,14 @@ func TestMulPolySparseEqual(t *testing.T) {
 	assert.Nil(t, err)
 
 	acopy1 := polyA.Copy()
-	result1 := acopy1.mulNaive(polyB)
+	err = acopy1.mulNaive(polyB)
 	assert.Nil(t, err)
 
 	acopy2 := polyA.Copy()
-	result2, err := acopy2.mulFFT(polyB)
+	err = acopy2.mulFFT(polyB)
 	assert.Nil(t, err)
 
-	assert.True(t, result1.Equal(result2))
+	assert.True(t, acopy1.Equal(acopy2))
 }
 
 func TestNewRandomPolynomial(t *testing.T) {
@@ -324,8 +327,8 @@ func TestMulPolyByConstant(t *testing.T) {
 	}
 	expectedPoly := NewFromFr(expected)
 
-	result := poly.MulByConstant(constant)
-	assert.True(t, expectedPoly.Equal(result))
+	poly.MulByConstant(constant)
+	assert.True(t, expectedPoly.Equal(poly))
 }
 
 func BenchmarkMulNaiveN8(b *testing.B)    { benchmarkMulNaive(b, 256) }
@@ -364,7 +367,7 @@ func benchmarkMulFFT(b *testing.B, n int) {
 		b.StopTimer()
 		p := poly1.Copy()
 		b.StartTimer()
-		_, err := p.mulFFT(poly2)
+		err := p.mulFFT(poly2)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -385,7 +388,7 @@ func benchmarkMulSparse(b *testing.B, n, t int) {
 		b.StopTimer()
 		p := polyA.Copy()
 		b.StartTimer()
-		_, err := p.Mul(polyB) // Mul will use the fast algorithm for sparse polynomials.
+		err := p.Mul(polyB) // Mul will use the fast algorithm for sparse polynomials.
 		if err != nil {
 			b.Fatal(err)
 		}

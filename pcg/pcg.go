@@ -121,7 +121,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	if len(rand) != p.c {
 		return nil, fmt.Errorf("rand must hold c=%d polynomials but contains %d", p.c, len(rand))
 	}
-	one, _ := poly.NewSparse([]*bls12381.Fr{bls12381.NewFr().One()}, []*big.Int{big.NewInt(0)}) // = 1
+	one, _ := poly.NewSparse([]*bls12381.Fr{bls12381.NewFr().FromBytes(big.NewInt(1).Bytes())}, []*big.Int{big.NewInt(0)}) // = 1
 	if !rand[p.c-1].Equal(one) {
 		return nil, fmt.Errorf("rand must be a slice of polynomials with polynomial of the the last index rand[c-1] equal to 1")
 	}
@@ -163,14 +163,15 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 						return nil, fmt.Errorf("step 2: length of VOLE DSPF FullEval is %d but is expected to be t=%d", len(res), p.t)
 					}
 
-					_, err = ur.SparseBigAdd(res)
+					err = ur.SparseBigAdd(res)
 					if err != nil {
 						return nil, err
 					}
 				}
 			}
 		}
-		utilde[r] = ur
+		utilde[r] = poly.New()
+		utilde[r].Set(ur)
 	}
 
 	// 3. Process first OLE seed
@@ -200,14 +201,15 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 							return nil, fmt.Errorf("step 2: length of OLE DSPF FullEval is %d but is expected to be t^2=%d", len(res), p.t*p.t)
 						}
 
-						_, err = wrs.SparseBigAdd(res)
+						err = wrs.SparseBigAdd(res)
 						if err != nil {
 							return nil, err
 						}
 					}
 				}
 			}
-			w[r][s] = wrs
+			w[r][s] = poly.New()
+			w[r][s].Set(wrs)
 		}
 	}
 
@@ -238,7 +240,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 							return nil, fmt.Errorf("step 2: length of OLE DSPF FullEval is %d but is expected to be t^2=%d", len(res), p.t*p.t)
 						}
 
-						_, err = mrs.SparseBigAdd(res)
+						err = mrs.SparseBigAdd(res)
 						if err != nil {
 							return nil, err
 						}
@@ -247,7 +249,8 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 					}
 				}
 			}
-			m[r][s] = mrs
+			m[r][s] = poly.New()
+			m[r][s].Set(mrs)
 		}
 	}
 
@@ -320,6 +323,14 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		}
 	}
 	delta0i.Add(m[p.c-1][p.c-1]) // oprand[c*c-1] is always 1, we can just add m[c-1][c-1] it
+
+	// Print all tuple elements
+	fmt.Println("ei: ", ei.AmountOfCoefficients())
+	fmt.Println("si: ", si.AmountOfCoefficients())
+	fmt.Println("ai: ", ai.AmountOfCoefficients())
+	fmt.Println("delta0i: ", delta0i.AmountOfCoefficients())
+	fmt.Println("delta1i: ", delta1i.AmountOfCoefficients())
+	fmt.Println("alphai: ", alphai.AmountOfCoefficients())
 
 	return nil, nil
 }
