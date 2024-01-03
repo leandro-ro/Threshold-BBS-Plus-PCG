@@ -283,6 +283,48 @@ func (p *Polynomial) Sparseness() int {
 	return degree + 1 - len(p.coefficients) // +1 as we need to also account for the constant term, e.g. x^2 + 2 -> (degree: 2) + 1 - (coeff len: 1) = 2 sparse
 }
 
+// Mod returns the remainder of the polynomial divided by another polynomial.
+func (p *Polynomial) Mod(other *Polynomial) (*Polynomial, error) {
+	divisorDegree, err := other.Degree()
+	if err != nil {
+		return nil, err
+	}
+	currentRemDeg, err := p.Degree()
+	if err != nil {
+		return nil, err
+	}
+	// Quick check if the degree of the divisor is greater than the dividend
+	if divisorDegree > currentRemDeg {
+		return p.Copy(), nil
+	}
+
+	remainder := p.Copy()
+	for currentRemDeg >= divisorDegree {
+		leadingTermExponent := currentRemDeg - divisorDegree
+
+		inv := bls12381.NewFr()
+		inv.Inverse(other.coefficients[divisorDegree])
+		leadingTermCoefficient := bls12381.NewFr()
+		leadingTermCoefficient.Mul(remainder.coefficients[currentRemDeg], inv)
+
+		monomial, err := NewSparse([]*bls12381.Fr{leadingTermCoefficient}, []*big.Int{big.NewInt(int64(leadingTermExponent))})
+		if err != nil {
+			return nil, err
+		}
+		otherMulMonomial, err := Mul(other, monomial)
+		if err != nil {
+			return nil, err
+		}
+		remainder.Sub(otherMulMonomial)
+		currentRemDeg, err = remainder.Degree()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return remainder, nil
+}
+
 // mulNaive multiplies two polynomials using the naive method in O(n^2).
 // note that this can be faster for polynomials with a small number of coefficients.
 func (p *Polynomial) mulNaive(q *Polynomial) error {

@@ -331,6 +331,44 @@ func TestMulPolyByConstant(t *testing.T) {
 	assert.True(t, expectedPoly.Equal(poly))
 }
 
+func TestMod(t *testing.T) {
+	// Test polynomial a: 2x^2 + 2x + 1
+	aValues := []*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(2)}
+	aPoly := NewFromBig(aValues)
+	// Test polynomial b: x^2
+	bValues := []*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(1)}
+	bPoly := NewFromBig(bValues)
+
+	remainder, err := aPoly.Mod(bPoly)
+	assert.Nil(t, err)
+
+	// Expected polynomial: 2x + 1
+	expectedValues := []*big.Int{big.NewInt(1), big.NewInt(2)}
+	expectedPoly := NewFromBig(expectedValues)
+
+	assert.True(t, expectedPoly.Equal(remainder))
+}
+
+func TestModLarge(t *testing.T) {
+	maxDegreeA := 512
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	aPoly, err := NewRandomPolynomial(rng, maxDegreeA)
+	assert.Nil(t, err)
+	maxDegreeB := 64
+	bPoly, err := NewRandomPolynomial(rng, maxDegreeB)
+	assert.Nil(t, err)
+
+	remainder, err := aPoly.Mod(bPoly)
+	assert.Nil(t, err)
+
+	deg, err := remainder.Degree()
+	assert.Nil(t, err)
+	degB, err := bPoly.Degree()
+	assert.Nil(t, err)
+
+	assert.True(t, deg < degB)
+}
+
 func BenchmarkMulNaiveN8(b *testing.B)    { benchmarkMulNaive(b, 256) }
 func BenchmarkMulFFTN8(b *testing.B)      { benchmarkMulFFT(b, 256) }
 func BenchmarkMulNaiveN10(b *testing.B)   { benchmarkMulNaive(b, 1024) }
