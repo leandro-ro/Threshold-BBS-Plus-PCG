@@ -100,6 +100,21 @@ func NewRandomPolynomial(rng *rand.Rand, degree int) (*Polynomial, error) {
 	return NewFromFr(coefficients), nil
 }
 
+// NewCyclotomicPolynomial creates a polynomial of the following structure:
+// x^degree + neg(1)
+func NewCyclotomicPolynomial(degree *big.Int) (*Polynomial, error) {
+	if degree.Cmp(big.NewInt(0)) < 0 {
+		return nil, fmt.Errorf("degree must be greater than zero")
+	}
+	one := bls12381.NewFr().One()
+	poly := New()
+	poly.coefficients[0] = bls12381.NewFr()
+	poly.coefficients[0].Neg(one)
+	poly.coefficients[int(degree.Int64())] = bls12381.NewFr().One()
+
+	return poly, nil
+}
+
 // Degree returns the degree of the polynomial.
 // If the polynomial is empty, it returns an error.
 func (p *Polynomial) Degree() (int, error) {
@@ -284,8 +299,8 @@ func (p *Polynomial) Sparseness() int {
 }
 
 // Mod returns the remainder of the polynomial divided by another polynomial.
-func (p *Polynomial) Mod(other *Polynomial) (*Polynomial, error) {
-	divisorDegree, err := other.Degree()
+func (p *Polynomial) Mod(divisor *Polynomial) (*Polynomial, error) {
+	divisorDegree, err := divisor.Degree()
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +318,7 @@ func (p *Polynomial) Mod(other *Polynomial) (*Polynomial, error) {
 		leadingTermExponent := currentRemDeg - divisorDegree
 
 		inv := bls12381.NewFr()
-		inv.Inverse(other.coefficients[divisorDegree])
+		inv.Inverse(divisor.coefficients[divisorDegree])
 		leadingTermCoefficient := bls12381.NewFr()
 		leadingTermCoefficient.Mul(remainder.coefficients[currentRemDeg], inv)
 
@@ -311,7 +326,7 @@ func (p *Polynomial) Mod(other *Polynomial) (*Polynomial, error) {
 		if err != nil {
 			return nil, err
 		}
-		otherMulMonomial, err := Mul(other, monomial)
+		otherMulMonomial, err := Mul(divisor, monomial)
 		if err != nil {
 			return nil, err
 		}
@@ -323,6 +338,80 @@ func (p *Polynomial) Mod(other *Polynomial) (*Polynomial, error) {
 	}
 
 	return remainder, nil
+}
+
+// ModCyclotomic performs a modulo operation on a polynomial with a cyclotomic polynomial.
+// This is an optimization for the modulo operation as we do not need to perform polynomial multiplication.
+func (p *Polynomial) ModCyclotomic(divisor *Polynomial) (*Polynomial, error) {
+	if !divisor.isCyclotomic() {
+		return nil, fmt.Errorf("the divisor must be a cyclotomic polynomial")
+	}
+
+	divisorDegree, err := divisor.Degree()
+	if err != nil {
+		return nil, err
+	}
+	currentRemDeg, err := p.Degree()
+	if err != nil {
+		return nil, err
+	}
+
+	// Quick check if the degree of the divisor is greater than the dividend
+	if divisorDegree > currentRemDeg {
+		return p.Copy(), nil
+	}
+
+	remainder := New()
+	// Iterate over all coefficients of p
+	for degree, coefficient := range p.coefficients {
+		newDegree := degree % divisorDegree
+		if val, ok := remainder.coefficients[newDegree]; ok {
+			// If there is already a coefficient at newDegree, add to it
+			val.Add(val, coefficient)
+			if val.IsZero() {
+				delete(remainder.coefficients, newDegree)
+			}
+		} else {
+			// Otherwise, set the new coefficient at newDegree
+			coeffCopy := bls12381.NewFr().FromBytes(coefficient.ToBytes())
+			remainder.coefficients[newDegree] = bls12381.NewFr()
+			remainder.coefficients[newDegree].Set(coeffCopy)
+		}
+	}
+
+	return remainder, nil
+}
+
+// isCyclotomic checks if the polynomial is a cyclotomic polynomial.
+// A cyclotomic polynomial is of the form x^n + neg(1).
+func (p *Polynomial) isCyclotomic() bool {
+	degree, err := p.Degree()
+	if err != nil {
+		return false
+	}
+	if degree == 0 {
+		return false
+	}
+
+	one := bls12381.NewFr().One()
+	if val, ok := p.coefficients[degree]; ok {
+		if !val.Equal(one) {
+			return false
+		}
+	} else {
+		return false
+	}
+	if val, ok := p.coefficients[0]; ok {
+		oneNeg := bls12381.NewFr()
+		oneNeg.Neg(one)
+		if !val.Equal(oneNeg) {
+			return false
+		}
+	} else {
+		return false
+	}
+
+	return true
 }
 
 // mulNaive multiplies two polynomials using the naive method in O(n^2).
@@ -435,27 +524,17 @@ func hasDuplicates(slice []*big.Int) bool {
 	return false
 }
 
-// containsZero checks if there is a zero value in a slice of *bls12381.Fr.
-func containsZero(slice []*bls12381.Fr) bool {
-	for _, num := range slice {
-		if num.IsZero() {
-			return true // Duplicate found
-		}
-	}
-	return false
-}
-
 // maxKey returns the maximum key in a map of int -> *bls12381.Fr.
 func maxKey(m map[int]*bls12381.Fr) (int, bool) {
-	var max int
+	var maxEx int
 	found := false
 
 	for k := range m {
-		if !found || k > max {
-			max = k
+		if !found || k > maxEx {
+			maxEx = k
 			found = true
 		}
 	}
 
-	return max, found
+	return maxEx, found
 }

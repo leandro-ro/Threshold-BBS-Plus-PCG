@@ -369,15 +369,46 @@ func TestModLarge(t *testing.T) {
 	assert.True(t, deg < degB)
 }
 
-func BenchmarkMulNaiveN8(b *testing.B)    { benchmarkMulNaive(b, 256) }
-func BenchmarkMulFFTN8(b *testing.B)      { benchmarkMulFFT(b, 256) }
-func BenchmarkMulNaiveN10(b *testing.B)   { benchmarkMulNaive(b, 1024) }
-func BenchmarkMulFTTN10(b *testing.B)     { benchmarkMulFFT(b, 1024) }
-func BenchmarkMulNaiveN12(b *testing.B)   { benchmarkMulNaive(b, 4096) }
-func BenchmarkMulFTTN12(b *testing.B)     { benchmarkMulFFT(b, 4096) }
-func BenchmarkMulFTTN20(b *testing.B)     { benchmarkMulFFT(b, 1048576) }
-func BenchmarkSparseN20T16(b *testing.B)  { benchmarkMulSparse(b, 1048576, 16) }
-func BenchmarkSparseN21T256(b *testing.B) { benchmarkMulSparse(b, 2097152, 256) }
+func TestModCyclotomic(t *testing.T) {
+	maxDegreeA := 512
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	aPoly, err := NewRandomPolynomial(rng, maxDegreeA)
+	assert.Nil(t, err)
+
+	maxDegreeB := 128
+	bPoly, err := NewCyclotomicPolynomial(big.NewInt(int64(maxDegreeB)))
+	assert.Nil(t, err)
+	assert.True(t, bPoly.isCyclotomic())
+
+	modRef, err := aPoly.Mod(bPoly)
+	assert.Nil(t, err)
+	assert.NotNil(t, modRef)
+
+	modCycl, err := aPoly.ModCyclotomic(bPoly)
+	assert.Nil(t, err)
+
+	assert.True(t, modRef.Equal(modCycl))
+
+	degRef, err := modRef.Degree()
+	assert.Nil(t, err)
+	assert.True(t, degRef < maxDegreeB)
+
+	degCyc, err := modCycl.Degree()
+	assert.Nil(t, err)
+	assert.True(t, degCyc < maxDegreeB)
+}
+
+func BenchmarkMulNaiveN8(b *testing.B)             { benchmarkMulNaive(b, 256) }
+func BenchmarkMulFFTN8(b *testing.B)               { benchmarkMulFFT(b, 256) }
+func BenchmarkMulNaiveN10(b *testing.B)            { benchmarkMulNaive(b, 1024) }
+func BenchmarkMulFTTN10(b *testing.B)              { benchmarkMulFFT(b, 1024) }
+func BenchmarkMulNaiveN12(b *testing.B)            { benchmarkMulNaive(b, 4096) }
+func BenchmarkMulFTTN12(b *testing.B)              { benchmarkMulFFT(b, 4096) }
+func BenchmarkMulFTTN20(b *testing.B)              { benchmarkMulFFT(b, 1048576) }
+func BenchmarkSparseN20T16(b *testing.B)           { benchmarkMulSparse(b, 1048576, 16) }
+func BenchmarkSparseN21T256(b *testing.B)          { benchmarkMulSparse(b, 2097152, 256) }
+func BenchmarkNaiveModCyclotomic(b *testing.B)     { benchmarkNaiveModCyclotomic(b, 512, 128) }
+func BenchmarkOptimizedModCyclotomic(b *testing.B) { benchmarkOptimizedModCyclotomic(b, 512, 128) }
 
 func benchmarkMulNaive(b *testing.B, n int) {
 	slice1 := randomFrSlice(n)
@@ -427,6 +458,36 @@ func benchmarkMulSparse(b *testing.B, n, t int) {
 		p := polyA.Copy()
 		b.StartTimer()
 		err := p.Mul(polyB) // Mul will use the fast algorithm for sparse polynomials.
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkNaiveModCyclotomic(b *testing.B, polyDegree, divisorDegree int) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	poly, _ := NewRandomPolynomial(rng, polyDegree)
+
+	divisor, _ := NewCyclotomicPolynomial(big.NewInt(int64(divisorDegree)))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := poly.Mod(divisor)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkOptimizedModCyclotomic(b *testing.B, polyDegree, divisorDegree int) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	poly, _ := NewRandomPolynomial(rng, polyDegree)
+
+	divisor, _ := NewCyclotomicPolynomial(big.NewInt(int64(divisorDegree)))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := poly.ModCyclotomic(divisor)
 		if err != nil {
 			b.Fatal(err)
 		}
