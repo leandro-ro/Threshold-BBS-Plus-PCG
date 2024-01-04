@@ -6,13 +6,11 @@ import (
 	"math"
 	"math/big"
 	"math/rand"
-	"sync"
 )
 
 // Polynomial represents a polynomial in the form of a map: exponent -> coefficient.
 type Polynomial struct {
 	coefficients map[int]*bls12381.Fr // coefficients of the polynomial in the form of a map: exponent -> coefficient
-	mtx          sync.Mutex           // Mutex to ensure thread-safety
 }
 
 // NewFromFr converts slice of *bls12381.Fr to Polynomial representation.
@@ -30,7 +28,6 @@ func NewFromFr(values []*bls12381.Fr) *Polynomial {
 
 	return &Polynomial{
 		coefficients: coefficients,
-		mtx:          sync.Mutex{},
 	}
 }
 
@@ -61,7 +58,6 @@ func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, 
 
 	p := &Polynomial{
 		coefficients: make(map[int]*bls12381.Fr),
-		mtx:          sync.Mutex{},
 	}
 
 	for i, c := range coefficients {
@@ -81,7 +77,6 @@ func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, 
 func New() *Polynomial {
 	return &Polynomial{
 		coefficients: make(map[int]*bls12381.Fr),
-		mtx:          sync.Mutex{},
 	}
 }
 
@@ -127,8 +122,6 @@ func (p *Polynomial) Degree() (int, error) {
 
 // Equal checks if two polynomials are equal.
 func (p *Polynomial) Equal(q *Polynomial) bool {
-	p.mtx.Lock()
-	q.mtx.Lock()
 	if len(p.coefficients) != len(q.coefficients) { // Quick check
 		return false
 	}
@@ -139,8 +132,6 @@ func (p *Polynomial) Equal(q *Polynomial) bool {
 		}
 	}
 
-	p.mtx.Unlock()
-	q.mtx.Unlock()
 	return true
 }
 
@@ -148,26 +139,20 @@ func (p *Polynomial) Equal(q *Polynomial) bool {
 func (p *Polynomial) Copy() *Polynomial {
 	newPoly := &Polynomial{
 		coefficients: make(map[int]*bls12381.Fr),
-		mtx:          sync.Mutex{},
 	}
 
-	p.mtx.Lock()
 	for exp, coeff := range p.coefficients {
 		val := bls12381.NewFr().FromBytes(coeff.ToBytes())
 		newPoly.coefficients[exp] = bls12381.NewFr().Set(val)
 	}
-	p.mtx.Unlock()
+
 	return newPoly
 }
 
 // Set sets the polynomial to the polynomial given as argument.
 // It is not a copy, so be careful when using this function.
 func (p *Polynomial) Set(q *Polynomial) {
-	p.mtx.Lock()
-	q.mtx.Lock()
 	p.coefficients = q.coefficients
-	p.mtx.Unlock()
-	q.mtx.Unlock()
 }
 
 // AmountOfCoefficients returns the number of coefficients of the polynomial.
@@ -176,7 +161,6 @@ func (p *Polynomial) AmountOfCoefficients() int {
 }
 
 func (p *Polynomial) String() string {
-	p.mtx.Lock()
 	degree, _ := p.Degree()
 	str := ""
 	for i := degree; i >= 0; i-- {
@@ -184,15 +168,11 @@ func (p *Polynomial) String() string {
 			str += fmt.Sprintf("%s*x^%d + ", val.ToBig().String(), i)
 		}
 	}
-	p.mtx.Unlock()
 	return str[:len(str)-3] // Remove trailing " + "
 }
 
 // Add adds two polynomials and stores the result in the polynomial the function is being called on.
 func (p *Polynomial) Add(q *Polynomial) {
-	p.mtx.Lock()
-	q.mtx.Lock()
-
 	for exp, coeff := range q.coefficients {
 		if val, ok := p.coefficients[exp]; ok {
 			val.Add(val, coeff)
@@ -203,15 +183,12 @@ func (p *Polynomial) Add(q *Polynomial) {
 			p.coefficients[exp] = bls12381.NewFr().FromBytes(coeff.ToBytes())
 		}
 	}
-	p.mtx.Unlock()
-	q.mtx.Unlock()
 	return
 }
 
 // SparseBigAdd adds a slice of big.Int to a polynomial and stores the result in the polynomial the function is being called on.
 // The length of the slice must be equal to the number of coefficients of the polynomial.
 func (p *Polynomial) SparseBigAdd(b []*big.Int) error {
-	p.mtx.Lock()
 	if len(b) != len(p.coefficients) {
 		return fmt.Errorf("length of b must be equal to the number of coefficients of the polynomial")
 	}
@@ -221,14 +198,11 @@ func (p *Polynomial) SparseBigAdd(b []*big.Int) error {
 		coeff.Add(coeff, bls12381.NewFr().FromBytes(b[i].Bytes()))
 		i++
 	}
-	p.mtx.Unlock()
 	return nil
 }
 
 // Sub subtracts two polynomials and stores the result in the polynomial the function is being called on.
 func (p *Polynomial) Sub(q *Polynomial) {
-	p.mtx.Lock()
-	q.mtx.Lock()
 	for exp, coeff := range q.coefficients {
 		if val, ok := p.coefficients[exp]; ok {
 			val.Sub(val, coeff)
@@ -240,17 +214,13 @@ func (p *Polynomial) Sub(q *Polynomial) {
 			p.coefficients[exp].Neg(p.coefficients[exp])
 		}
 	}
-	p.mtx.Unlock()
-	q.mtx.Unlock()
 }
 
 // MulByConstant multiplies the polynomial by a constant.
 func (p *Polynomial) MulByConstant(constant *bls12381.Fr) {
-	p.mtx.Lock()
 	for _, coeff := range p.coefficients {
 		coeff.Mul(coeff, constant)
 	}
-	p.mtx.Unlock()
 }
 
 // Mul multiplies two polynomials and stores the result in the polynomial the function is being called on.
@@ -419,8 +389,6 @@ func (p *Polynomial) isCyclotomic() bool {
 func (p *Polynomial) mulNaive(q *Polynomial) error {
 	resultCoeffs := make(map[int]*bls12381.Fr) // Create a new map for the result
 
-	p.mtx.Lock()
-	q.mtx.Lock()
 	for expP, coeffP := range p.coefficients { // Iterate through map of p
 		for expQ, coeffQ := range q.coefficients { // Iterate through slice of q. This is more efficient than iterating through map of q.
 			if !coeffQ.IsZero() {
@@ -440,16 +408,12 @@ func (p *Polynomial) mulNaive(q *Polynomial) error {
 		}
 	}
 	p.coefficients = resultCoeffs
-	p.mtx.Unlock()
-	q.mtx.Unlock()
 	return nil
 }
 
 // mulFFT multiplies two polynomials using the FFT  in O(nlogn).
 // note that this can be faster for polynomials with a very large number of coefficients.
 func (p *Polynomial) mulFFT(q *Polynomial) error {
-	p.mtx.Lock()
-	q.mtx.Lock()
 	coeffsP := polyAsCoefficientsBigInt(p)
 	coeffsQ := polyAsCoefficientsBigInt(q)
 	coeffsP, coeffsQ = extendSliceWithZeros(coeffsP, coeffsQ)
@@ -465,8 +429,6 @@ func (p *Polynomial) mulFFT(q *Polynomial) error {
 	}
 
 	p.coefficients = NewFromBig(resultBig).coefficients
-	p.mtx.Unlock()
-	q.mtx.Unlock()
 	return nil
 }
 
