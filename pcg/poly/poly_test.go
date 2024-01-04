@@ -16,6 +16,28 @@ func TestNewPoly(t *testing.T) {
 	assert.Equal(t, len(slice), len(poly.coefficients))
 }
 
+func TestSerialize(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	poly, err := NewRandomPolynomial(rng, 512)
+	assert.Nil(t, err)
+
+	serializedBytes, err := poly.Serialize()
+	assert.Nil(t, err)
+	assert.NotNil(t, serializedBytes)
+
+	deserialized := NewEmpty()
+	err = deserialized.Deserialize(serializedBytes)
+	assert.Nil(t, err)
+	assert.NotNil(t, deserialized)
+	assert.True(t, poly.Equal(deserialized))
+
+	fromBytes, err := NewFromSerialization(serializedBytes)
+	assert.Nil(t, err)
+	assert.NotNil(t, fromBytes)
+	assert.True(t, poly.Equal(fromBytes))
+
+}
+
 func TestNewSparsePoly(t *testing.T) {
 	sparseT := 4
 	maxExp := big.NewInt(127)

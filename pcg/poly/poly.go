@@ -1,6 +1,8 @@
 package poly
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
 	"math"
@@ -13,11 +15,72 @@ type Polynomial struct {
 	coefficients map[int]*bls12381.Fr // coefficients of the polynomial in the form of a map: exponent -> coefficient
 }
 
+// Serialize returns the byte representation of the polynomial.
+func (p *Polynomial) Serialize() ([]byte, error) {
+	var buffer bytes.Buffer
+
+	for exponent, coefficient := range p.coefficients {
+		// Write the exponent
+		err := binary.Write(&buffer, binary.BigEndian, int32(exponent))
+		if err != nil {
+			return nil, err
+		}
+
+		// Write the coefficient
+		coeffBytes := coefficient.ToBytes()
+		buffer.Write(coeffBytes[:])
+	}
+
+	return buffer.Bytes(), nil
+}
+
+// Deserialize deserializes the byte representation of a polynomial and sets the polynomial the function is being called on.
+func (p *Polynomial) Deserialize(data []byte) error {
+	buffer := bytes.NewBuffer(data)
+	var exponent int32
+	newPolynomial := &Polynomial{coefficients: make(map[int]*bls12381.Fr)}
+
+	for buffer.Len() > 0 {
+		// Read the exponent
+		err := binary.Read(buffer, binary.BigEndian, &exponent)
+		if err != nil {
+			return err
+		}
+
+		// Read the coefficient
+		coeffBytes := make([]byte, 32) // size of bls12381.Fr in bytes is 32
+		_, err = buffer.Read(coeffBytes)
+		if err != nil {
+			return err
+		}
+		coefficient := bls12381.NewFr()
+		coefficient.FromBytes(coeffBytes)
+
+		newPolynomial.coefficients[int(exponent)] = coefficient
+	}
+
+	p.Set(newPolynomial)
+	return nil
+}
+
 // NewEmpty returns a new empty polynomial.
 func NewEmpty() *Polynomial {
 	return &Polynomial{
 		coefficients: make(map[int]*bls12381.Fr),
 	}
+}
+
+// NewFromSerialization takes a serialized polynomial and deserializes it to return a new Polynomial.
+func NewFromSerialization(data []byte) (*Polynomial, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("byte slice is empty")
+	}
+	newPoly := NewEmpty()
+	err := newPoly.Deserialize(data)
+	if err != nil {
+		return nil, err
+	}
+	return newPoly, nil
 }
 
 // NewFromFr converts slice of *bls12381.Fr to Polynomial representation.
@@ -322,10 +385,6 @@ func (p *Polynomial) modNaive(divisor *Polynomial) (*Polynomial, error) {
 // modCyclotomic performs a modulo operation on a polynomial with a cyclotomic polynomial.
 // This is an optimization for the modulo operation as we do not need to perform polynomial multiplication.
 func (p *Polynomial) modCyclotomic(divisor *Polynomial) (*Polynomial, error) {
-	if !divisor.isCyclotomic() {
-		return nil, fmt.Errorf("the divisor must be a cyclotomic polynomial")
-	}
-
 	divisorDegree, err := divisor.Degree()
 	if err != nil {
 		return nil, err
