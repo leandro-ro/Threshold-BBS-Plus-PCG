@@ -339,7 +339,7 @@ func TestMod(t *testing.T) {
 	bValues := []*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(1)}
 	bPoly := NewFromBig(bValues)
 
-	remainder, err := aPoly.Mod(bPoly)
+	remainder, err := aPoly.modNaive(bPoly)
 	assert.Nil(t, err)
 
 	// Expected polynomial: 2x + 1
@@ -358,7 +358,7 @@ func TestModLarge(t *testing.T) {
 	bPoly, err := NewRandomPolynomial(rng, maxDegreeB)
 	assert.Nil(t, err)
 
-	remainder, err := aPoly.Mod(bPoly)
+	remainder, err := aPoly.modNaive(bPoly)
 	assert.Nil(t, err)
 
 	deg, err := remainder.Degree()
@@ -380,11 +380,11 @@ func TestModCyclotomic(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, bPoly.isCyclotomic())
 
-	modRef, err := aPoly.Mod(bPoly)
+	modRef, err := aPoly.modNaive(bPoly)
 	assert.Nil(t, err)
 	assert.NotNil(t, modRef)
 
-	modCycl, err := aPoly.ModCyclotomic(bPoly)
+	modCycl, err := aPoly.modCyclotomic(bPoly)
 	assert.Nil(t, err)
 
 	assert.True(t, modRef.Equal(modCycl))
@@ -472,7 +472,7 @@ func benchmarkNaiveModCyclotomic(b *testing.B, polyDegree, divisorDegree int) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := poly.Mod(divisor)
+		_, err := poly.modNaive(divisor)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -487,7 +487,7 @@ func benchmarkOptimizedModCyclotomic(b *testing.B, polyDegree, divisorDegree int
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := poly.ModCyclotomic(divisor)
+		_, err := poly.modCyclotomic(divisor)
 		if err != nil {
 			b.Fatal(err)
 		}

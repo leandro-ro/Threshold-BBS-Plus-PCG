@@ -270,6 +270,16 @@ func (p *Polynomial) Sparseness() int {
 
 // Mod returns the remainder of the polynomial divided by another polynomial.
 func (p *Polynomial) Mod(divisor *Polynomial) (*Polynomial, error) {
+	if p.isCyclotomic() { // Optimization for cyclotomic polynomials
+		return p.modCyclotomic(divisor)
+	} else {
+		return p.modNaive(divisor)
+	}
+}
+
+// modNaive returns the remainder of the polynomial divided by another polynomial.
+// This is the naive method of modulo using polynomial division.
+func (p *Polynomial) modNaive(divisor *Polynomial) (*Polynomial, error) {
 	divisorDegree, err := divisor.Degree()
 	if err != nil {
 		return nil, err
@@ -310,9 +320,9 @@ func (p *Polynomial) Mod(divisor *Polynomial) (*Polynomial, error) {
 	return remainder, nil
 }
 
-// ModCyclotomic performs a modulo operation on a polynomial with a cyclotomic polynomial.
+// modCyclotomic performs a modulo operation on a polynomial with a cyclotomic polynomial.
 // This is an optimization for the modulo operation as we do not need to perform polynomial multiplication.
-func (p *Polynomial) ModCyclotomic(divisor *Polynomial) (*Polynomial, error) {
+func (p *Polynomial) modCyclotomic(divisor *Polynomial) (*Polynomial, error) {
 	if !divisor.isCyclotomic() {
 		return nil, fmt.Errorf("the divisor must be a cyclotomic polynomial")
 	}
