@@ -13,6 +13,13 @@ type Polynomial struct {
 	coefficients map[int]*bls12381.Fr // coefficients of the polynomial in the form of a map: exponent -> coefficient
 }
 
+// NewEmpty returns a new empty polynomial.
+func NewEmpty() *Polynomial {
+	return &Polynomial{
+		coefficients: make(map[int]*bls12381.Fr),
+	}
+}
+
 // NewFromFr converts slice of *bls12381.Fr to Polynomial representation.
 // The index of the element will be its exponent.
 func NewFromFr(values []*bls12381.Fr) *Polynomial {
@@ -21,7 +28,7 @@ func NewFromFr(values []*bls12381.Fr) *Polynomial {
 		// Ensure that only non-zero coefficients are stored for efficiency.
 		if !v.IsZero() {
 			coefficients[i] = bls12381.NewFr()
-			val := bls12381.NewFr().FromBytes(v.ToBytes()) // Copy coefficient
+			val := bls12381.NewFr().FromBytes(v.ToBytes()) // DeepCopy coefficient
 			coefficients[i].Set(val)
 		}
 	}
@@ -46,8 +53,7 @@ func NewFromBig(values []*big.Int) *Polynomial {
 
 // NewSparse creates a new sparse polynomial with the given coefficients and their exponents.
 // The index of the coefficient will determine the respective exponent in the exponents slice.
-// Note that coefficients can be zero, but the respective exponents is accordingly ignored.
-// The exponents must be unique.
+// E.g. coefficients = [1, 2, 3], exponents = [0, 1, 2] -> 1*x^0 + 2*x^1 + 3*x^2
 func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, error) {
 	if len(coefficients) != len(exponents) {
 		return nil, fmt.Errorf("length of coefficients and exponents must be equal")
@@ -73,15 +79,8 @@ func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, 
 	return p, nil
 }
 
-// New returns a new empty polynomial.
-func New() *Polynomial {
-	return &Polynomial{
-		coefficients: make(map[int]*bls12381.Fr),
-	}
-}
-
 // NewRandomPolynomial creates a random polynomial of the given degree.
-// Every coefficient is a random element in Fr, hence the polynomial is not sparse.
+// Every coefficient is a random element in Fr, hence the polynomial is most likely not sparse.
 func NewRandomPolynomial(rng *rand.Rand, degree int) (*Polynomial, error) {
 	coefficients := make([]*bls12381.Fr, degree)
 	for i := 0; i < degree; i++ {
@@ -95,14 +94,14 @@ func NewRandomPolynomial(rng *rand.Rand, degree int) (*Polynomial, error) {
 	return NewFromFr(coefficients), nil
 }
 
-// NewCyclotomicPolynomial creates a polynomial of the following structure:
-// x^degree + neg(1)
+// NewCyclotomicPolynomial creates a cyclotomic polynomial of the given degree.
+// The resulting polynomial will have the following structure: x^degree + neg(1)
 func NewCyclotomicPolynomial(degree *big.Int) (*Polynomial, error) {
 	if degree.Cmp(big.NewInt(0)) < 0 {
 		return nil, fmt.Errorf("degree must be greater than zero")
 	}
 	one := bls12381.NewFr().One()
-	poly := New()
+	poly := NewEmpty()
 	poly.coefficients[0] = bls12381.NewFr()
 	poly.coefficients[0].Neg(one)
 	poly.coefficients[int(degree.Int64())] = bls12381.NewFr().One()
@@ -135,8 +134,8 @@ func (p *Polynomial) Equal(q *Polynomial) bool {
 	return true
 }
 
-// Copy returns a copy of the polynomial the function is being called on.
-func (p *Polynomial) Copy() *Polynomial {
+// DeepCopy returns a copy of the polynomial the function is being called on.
+func (p *Polynomial) DeepCopy() *Polynomial {
 	newPoly := &Polynomial{
 		coefficients: make(map[int]*bls12381.Fr),
 	}
@@ -160,6 +159,7 @@ func (p *Polynomial) AmountOfCoefficients() int {
 	return len(p.coefficients)
 }
 
+// String returns the string representation of the polynomial.
 func (p *Polynomial) String() string {
 	degree, _ := p.Degree()
 	str := ""
@@ -210,7 +210,7 @@ func (p *Polynomial) Sub(q *Polynomial) {
 				delete(p.coefficients, exp)
 			}
 		} else {
-			p.coefficients[exp] = bls12381.NewFr().FromBytes(coeff.ToBytes()) // Copy coefficient
+			p.coefficients[exp] = bls12381.NewFr().FromBytes(coeff.ToBytes()) // DeepCopy coefficient
 			p.coefficients[exp].Neg(p.coefficients[exp])
 		}
 	}
@@ -234,8 +234,8 @@ func (p *Polynomial) Mul(q *Polynomial) error {
 
 // Mul returns the product of two polynomials without modifying the original polynomials.
 func Mul(p, q *Polynomial) (*Polynomial, error) {
-	copyP := p.Copy() // Ensure that the original polynomials are not modified
-	copyQ := q.Copy()
+	copyP := p.DeepCopy() // Ensure that the original polynomials are not modified
+	copyQ := q.DeepCopy()
 
 	err := copyP.Mul(copyQ)
 	return copyP, err
@@ -243,22 +243,21 @@ func Mul(p, q *Polynomial) (*Polynomial, error) {
 
 // Add returns the sum of two polynomials without modifying the original polynomials.
 func Add(p, q *Polynomial) *Polynomial {
-	res := p.Copy() // Ensure that the original polynomials are not modified
-	copyQ := q.Copy()
+	res := p.DeepCopy() // Ensure that the original polynomials are not modified
+	copyQ := q.DeepCopy()
 	res.Add(copyQ)
 	return res
 }
 
 // Sub returns the difference of two polynomials without modifying the original polynomials.
 func Sub(p, q *Polynomial) *Polynomial {
-	res := p.Copy() // Ensure that the original polynomials are not modified
-	copyQ := q.Copy()
+	res := p.DeepCopy() // Ensure that the original polynomials are not modified
+	copyQ := q.DeepCopy()
 	res.Sub(copyQ)
 	return res
 }
 
-// Sparseness returns the sparseness of the polynomial.
-// It returns the number of non-zero coefficients.
+// Sparseness returns the sparseness of the polynomial, hence it returns the number of non-zero coefficients.
 // E.g. x^2 + 2 = 1*x^2 + 0*x^1 + 2*x^0 -> 2 non-zero coefficients, hence 2-sparse.
 func (p *Polynomial) Sparseness() int {
 	degree, err := p.Degree()
@@ -290,10 +289,10 @@ func (p *Polynomial) modNaive(divisor *Polynomial) (*Polynomial, error) {
 	}
 	// Quick check if the degree of the divisor is greater than the dividend
 	if divisorDegree > currentRemDeg {
-		return p.Copy(), nil
+		return p.DeepCopy(), nil
 	}
 
-	remainder := p.Copy()
+	remainder := p.DeepCopy()
 	for currentRemDeg >= divisorDegree {
 		leadingTermExponent := currentRemDeg - divisorDegree
 
@@ -338,10 +337,10 @@ func (p *Polynomial) modCyclotomic(divisor *Polynomial) (*Polynomial, error) {
 
 	// Quick check if the degree of the divisor is greater than the dividend
 	if divisorDegree > currentRemDeg {
-		return p.Copy(), nil
+		return p.DeepCopy(), nil
 	}
 
-	remainder := New()
+	remainder := NewEmpty()
 	// Iterate over all coefficients of p
 	for degree, coefficient := range p.coefficients {
 		newDegree := degree % divisorDegree

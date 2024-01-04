@@ -143,7 +143,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	// 2. Process VOLE seed
 	utilde := make([]*poly.Polynomial, p.c)
 	for r := 0; r < p.c; r++ {
-		ur := u[r].Copy()          // We need unmodified u[r] later on, so we copy it
+		ur := u[r].DeepCopy()      // We need unmodified u[r] later on, so we copy it
 		ur.MulByConstant(seed.ski) // u[r] * sk[i]
 		for i := 0; i < p.n; i++ { // Ony cross terms
 			for j := 0; j < p.n; j++ {
@@ -170,7 +170,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 				}
 			}
 		}
-		utilde[r] = poly.New()
+		utilde[r] = poly.NewEmpty()
 		utilde[r].Set(ur)
 	}
 
@@ -208,7 +208,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 					}
 				}
 			}
-			w[r][s] = poly.New()
+			w[r][s] = poly.NewEmpty()
 			w[r][s].Set(wrs)
 		}
 	}
@@ -249,13 +249,13 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 					}
 				}
 			}
-			m[r][s] = poly.New()
+			m[r][s] = poly.NewEmpty()
 			m[r][s].Set(mrs)
 		}
 	}
 
 	// 4. Calculate BBS+ Tuples from the random polynomials in a
-	ai := poly.New()
+	ai := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
 		prod, err := poly.Mul(rand[j], u[j])
 		if err != nil {
@@ -265,7 +265,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	}
 	ai.Add(u[p.c-1]) // rand[c-1] is always 1, hence instead of multiplying we can just add
 
-	si := poly.New()
+	si := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
 		prod, err := poly.Mul(rand[j], v[j])
 		if err != nil {
@@ -275,7 +275,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	}
 	si.Add(v[p.c-1]) // rand[c-1] is always 1, we can just add v[c-1] it
 
-	ei := poly.New()
+	ei := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
 		prod, err := poly.Mul(rand[j], k[j])
 		if err != nil {
@@ -285,7 +285,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	}
 	ei.Add(k[p.c-1]) // rand[c-1] is always 1, hence instead of multiplying we can just add
 
-	delta1i := poly.New()
+	delta1i := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
 		prod, err := poly.Mul(rand[j], utilde[j])
 		if err != nil {
@@ -300,7 +300,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		return nil, err
 	}
 
-	alphai := poly.New()
+	alphai := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
 		for k := 0; k < p.c-1; k++ {
 			prod, err := poly.Mul(oprand[j*p.c+k], w[j][k])
@@ -312,7 +312,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 	}
 	alphai.Add(w[p.c-1][p.c-1]) // oprand[c*c-1] is always 1, we can just add w[c-1][c-1] it
 
-	delta0i := poly.New()
+	delta0i := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
 		for k := 0; k < p.c-1; k++ {
 			prod, err := poly.Mul(oprand[j*p.c+k], m[j][k])

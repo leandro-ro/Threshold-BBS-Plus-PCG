@@ -43,7 +43,7 @@ func TestCopy(t *testing.T) {
 	slice := randomFrSlice(100)
 	poly1 := NewFromFr(slice)
 
-	poly2 := poly1.Copy()
+	poly2 := poly1.DeepCopy()
 	assert.True(t, poly1.Equal(poly2))
 
 	sparseT := 16
@@ -55,7 +55,7 @@ func TestCopy(t *testing.T) {
 	polyA, err := NewSparse(coefficientsA, exponentsA)
 	assert.Nil(t, err)
 
-	polyB := polyA.Copy()
+	polyB := polyA.DeepCopy()
 	assert.True(t, polyA.Equal(polyB))
 }
 
@@ -114,7 +114,7 @@ func TestAddPolys(t *testing.T) {
 func TestAddEmpty(t *testing.T) {
 	n := 512
 	slice := randomFrSlice(n)
-	poly1 := New()
+	poly1 := NewEmpty()
 	poly2 := NewFromFr(slice)
 
 	result := Add(poly1, poly2)
@@ -203,11 +203,11 @@ func TestSeparateMul(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)
 	poly1 := NewFromFr(slice1)
-	poly1Expected := poly1.Copy()
+	poly1Expected := poly1.DeepCopy()
 
 	slice2 := randomFrSlice(n)
 	poly2 := NewFromFr(slice2)
-	poly2Expected := poly2.Copy()
+	poly2Expected := poly2.DeepCopy()
 
 	result1, err := Mul(poly1, poly2)
 	assert.Nil(t, err)
@@ -236,7 +236,7 @@ func TestMulPolysFFT(t *testing.T) {
 	bValues := []*big.Int{big.NewInt(0), big.NewInt(45), big.NewInt(0), big.NewInt(0), big.NewInt(84)}
 	bPoly := NewFromBig(bValues)
 
-	result := aPoly.Copy()
+	result := aPoly.DeepCopy()
 	err := result.mulFFT(bPoly)
 	assert.Nil(t, err)
 	assert.NotNil(t, result)
@@ -257,11 +257,11 @@ func TestMulPolyFTTEqual(t *testing.T) {
 	slice2 := randomFrSlice(n)
 	poly2 := NewFromFr(slice2)
 
-	result1 := poly1.Copy()
+	result1 := poly1.DeepCopy()
 	err := result1.mulNaive(poly2)
 	assert.Nil(t, err)
 
-	result2 := poly1.Copy()
+	result2 := poly1.DeepCopy()
 	err = result2.mulFFT(poly2)
 	assert.Nil(t, err)
 
@@ -284,11 +284,11 @@ func TestMulPolySparseEqual(t *testing.T) {
 	polyB, err := NewSparse(coefficientsB, exponentsB)
 	assert.Nil(t, err)
 
-	acopy1 := polyA.Copy()
+	acopy1 := polyA.DeepCopy()
 	err = acopy1.mulNaive(polyB)
 	assert.Nil(t, err)
 
-	acopy2 := polyA.Copy()
+	acopy2 := polyA.DeepCopy()
 	err = acopy2.mulFFT(polyB)
 	assert.Nil(t, err)
 
@@ -419,7 +419,7 @@ func benchmarkMulNaive(b *testing.B, n int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		p := poly1.Copy()
+		p := poly1.DeepCopy()
 		b.StartTimer()
 		_ = p.mulNaive(poly2)
 	}
@@ -434,7 +434,7 @@ func benchmarkMulFFT(b *testing.B, n int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		p := poly1.Copy()
+		p := poly1.DeepCopy()
 		b.StartTimer()
 		err := p.mulFFT(poly2)
 		if err != nil {
@@ -455,7 +455,7 @@ func benchmarkMulSparse(b *testing.B, n, t int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		p := polyA.Copy()
+		p := polyA.DeepCopy()
 		b.StartTimer()
 		err := p.Mul(polyB) // Mul will use the fast algorithm for sparse polynomials.
 		if err != nil {
