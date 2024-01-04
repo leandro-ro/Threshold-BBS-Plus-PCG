@@ -254,6 +254,13 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		}
 	}
 
+	// p.N^2:
+	n2 := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
+	div, err := poly.NewCyclotomicPolynomial(n2) // div = x^N^2 + neg(1)
+	if err != nil {
+		return nil, err
+	}
+
 	// 4. Calculate BBS+ Tuples from the random polynomials in a
 	ai := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
@@ -261,9 +268,17 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		if err != nil {
 			return nil, err
 		}
-		ai.Add(prod)
+		remainder, err := prod.Mod(div)
+		if err != nil {
+			return nil, err
+		}
+		ai.Add(remainder)
 	}
-	ai.Add(u[p.c-1]) // rand[c-1] is always 1, hence instead of multiplying we can just add
+	finalValU, err := u[p.c-1].Mod(div)
+	if err != nil {
+		return nil, err
+	}
+	ai.Add(finalValU) // rand[c-1] is always 1, hence instead of multiplying we can just add
 
 	si := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
@@ -271,9 +286,17 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		if err != nil {
 			return nil, err
 		}
-		si.Add(prod)
+		remainder, err := prod.Mod(div)
+		if err != nil {
+			return nil, err
+		}
+		si.Add(remainder)
 	}
-	si.Add(v[p.c-1]) // rand[c-1] is always 1, we can just add v[c-1] it
+	finalValV, err := v[p.c-1].Mod(div)
+	if err != nil {
+		return nil, err
+	}
+	si.Add(finalValV) // rand[c-1] is always 1, we can just add v[c-1] it
 
 	ei := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
@@ -281,9 +304,17 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		if err != nil {
 			return nil, err
 		}
-		ei.Add(prod)
+		remainder, err := prod.Mod(div)
+		if err != nil {
+			return nil, err
+		}
+		ei.Add(remainder)
 	}
-	ei.Add(k[p.c-1]) // rand[c-1] is always 1, hence instead of multiplying we can just add
+	finalValK, err := k[p.c-1].Mod(div)
+	if err != nil {
+		return nil, err
+	}
+	ei.Add(finalValK) // rand[c-1] is always 1, hence instead of multiplying we can just add
 
 	delta1i := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
@@ -291,9 +322,17 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 		if err != nil {
 			return nil, err
 		}
-		delta1i.Add(prod)
+		remainder, err := prod.Mod(div)
+		if err != nil {
+			return nil, err
+		}
+		delta1i.Add(remainder)
 	}
-	delta1i.Add(utilde[p.c-1]) // rand[c-1] is always 1, hence instead of multiplying we can just add
+	finalValUtilde, err := utilde[p.c-1].Mod(div)
+	if err != nil {
+		return nil, err
+	}
+	delta1i.Add(finalValUtilde) // rand[c-1] is always 1, hence instead of multiplying we can just add
 
 	oprand, err := outerProductPoly(rand, rand) // This is probably the only time FFT is used for multiplication
 	if err != nil {
@@ -307,10 +346,18 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 			if err != nil {
 				return nil, err
 			}
-			alphai.Add(prod)
+			remainder, err := prod.Mod(div)
+			if err != nil {
+				return nil, err
+			}
+			alphai.Add(remainder)
 		}
 	}
-	alphai.Add(w[p.c-1][p.c-1]) // oprand[c*c-1] is always 1, we can just add w[c-1][c-1] it
+	finalValW, err := w[p.c-1][p.c-1].Mod(div)
+	if err != nil {
+		return nil, err
+	}
+	alphai.Add(finalValW) // oprand[c*c-1] is always 1, we can just add w[c-1][c-1] it
 
 	delta0i := poly.NewEmpty()
 	for j := 0; j < p.c-1; j++ {
@@ -319,10 +366,18 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial) (*GeneratedTuples, error
 			if err != nil {
 				return nil, err
 			}
-			delta0i.Add(prod)
+			remainder, err := prod.Mod(div)
+			if err != nil {
+				return nil, err
+			}
+			delta0i.Add(remainder)
 		}
 	}
-	delta0i.Add(m[p.c-1][p.c-1]) // oprand[c*c-1] is always 1, we can just add m[c-1][c-1] it
+	finalValM, err := m[p.c-1][p.c-1].Mod(div)
+	if err != nil {
+		return nil, err
+	}
+	delta0i.Add(finalValM) // oprand[c*c-1] is always 1, we can just add m[c-1][c-1] it
 
 	// Print all tuple elements
 	fmt.Println("ei: ", ei.AmountOfCoefficients())
