@@ -221,6 +221,23 @@ func TestMulPolysNaive(t *testing.T) {
 	assert.True(t, expected.Equal(aPoly))
 }
 
+func TestEvaluate(t *testing.T) {
+	// Test polynomial a: a(x) = 12x^4 + 25x^3 + 4x^2 + 17
+	aValues := []*big.Int{big.NewInt(17), big.NewInt(0), big.NewInt(4), big.NewInt(25), big.NewInt(12)}
+	aPoly := NewFromBig(aValues)
+
+	x := bls12381.NewFr().FromBytes(big.NewInt(14).Bytes())
+	expected := bls12381.NewFr().FromBytes(big.NewInt(530393).Bytes())
+
+	resulta := aPoly.Evaluate(x)
+	assert.Equal(t, expected, resulta)
+
+	// Test polynomial b: b(x) = 0
+	bPoly := NewEmpty()
+	resultb := bPoly.Evaluate(x)
+	assert.Equal(t, bls12381.NewFr().Zero(), resultb)
+}
+
 func TestSeparateMul(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)

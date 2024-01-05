@@ -12,10 +12,13 @@ var (
 	TWO = big.NewInt(2)
 )
 
-// frModulus is the modulus of Fr in BLS12-381
-const frModulus = "73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"
+// FrModulus is the modulus of Fr in BLS12-381
+const FrModulus = "73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"
 
-// FrNthRootOfUnity is the 2^Nth root of unity for frModulus.
+// FrPrimitiveRootOfUnity is the primitive root of unity for FrModulus.
+const FrPrimitiveRootOfUnity = "7"
+
+// FrNthRootOfUnity is the 2^Nth root of unity for FrModulus.
 const frN8thRootOfUnity = "8031134342720706638121837972897357960137225421159210873251699151356237587899"
 const frN9thRootOfUnity = "43829637617520217940831602274391167521650037592896848111162657113203041232920"
 const frN10thRootOfUnity = "12349097598587345001440480015665551665503451720274001758508693314387019426020"
@@ -50,7 +53,7 @@ func NewFFT(modulus *big.Int, rootOfUnity *big.Int) (*FFT, error) {
 // 2**n is the maximum number of coefficients of the polynomial for multiplication.
 func NewBLS12381FFT(n int) (*FFT, error) {
 	modulus := new(big.Int)
-	modulus.SetString(frModulus, 16)
+	modulus.SetString(FrModulus, 16)
 
 	// we need to choose n+1, s.t. all multiplications of polynomials of degree n can be represented.
 	n = n + 1

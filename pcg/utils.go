@@ -8,9 +8,9 @@ import (
 	"math/rand"
 )
 
-// GetShamirSharedRandomElement generates a t-out-of-n shamir secret sharing of a random element.
+// getShamirSharedRandomElement generates a t-out-of-n shamir secret sharing of a random element.
 // This function is taken from the threshold-bbs-plus-signatures repository.
-func GetShamirSharedRandomElement(rng *rand.Rand, t, n int) (*bls12381.Fr, []*bls12381.Fr) {
+func getShamirSharedRandomElement(rng *rand.Rand, t, n int) (*bls12381.Fr, []*bls12381.Fr) {
 	// Generate the secret key element
 	secretKeyElement := bls12381.NewFr()
 	_, err := secretKeyElement.Rand(rng)
@@ -190,4 +190,32 @@ func bigIntSliceToFrSlice(s []*big.Int) []*bls12381.Fr {
 		result[i] = bls12381.NewFr().FromBytes(e.Bytes())
 	}
 	return result
+}
+
+// primeFactor represents a prime factor and its exponent.
+type primeFactor struct {
+	Factor   *big.Int // The prime factor
+	Exponent int      // The exponent of the prime factor
+}
+
+// multiplicativeGroupOrderFactorizationBLS12381 returns the prime factorization of the multiplicative group order -1 of BLS12381.
+// For performance reasons the factors are hardcoded.
+// Constants are taken from https://github.com/hyperproofs/go-mcl/blob/master/mcl_extra.go
+func multiplicativeGroupOrderFactorizationBLS12381() []primeFactor {
+	// Define the prime factors and their exponents
+	factors := []int64{2, 3, 11, 19, 10177, 125527, 859267, 906349, 2508409, 2529403, 52437899, 254760293}
+	multiplicities := []int{32, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2}
+
+	// Slice to hold the PrimeFactor structs
+	var primeFactors []primeFactor
+
+	// Iterate over the factors and their multiplicities
+	for i, factor := range factors {
+		primeFactors = append(primeFactors, primeFactor{
+			Factor:   big.NewInt(factor),
+			Exponent: multiplicities[i],
+		})
+	}
+
+	return primeFactors
 }

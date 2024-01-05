@@ -330,6 +330,31 @@ func (p *Polynomial) Sparseness() int {
 	return degree + 1 - len(p.coefficients) // +1 as we need to also account for the constant term, e.g. x^2 + 2 -> (degree: 2) + 1 - (coeff len: 1) = 2 sparse
 }
 
+// GetCoefficient returns the coefficient of the given exponent.
+func (p *Polynomial) GetCoefficient(i int) (*bls12381.Fr, error) {
+	if val, ok := p.coefficients[i]; ok {
+		ret := bls12381.NewFr().FromBytes(val.ToBytes()) // DeepCopy coefficient
+		return ret, nil
+	} else {
+		return nil, fmt.Errorf("coefficient does not exist")
+	}
+}
+
+// Evaluate evaluates the polynomial at the given point x.
+func (p *Polynomial) Evaluate(x *bls12381.Fr) *bls12381.Fr {
+	result := bls12381.NewFr()
+	result.Zero()
+
+	for exp, coeff := range p.coefficients {
+		term := bls12381.NewFr()
+		term.Exp(x, big.NewInt(int64(exp)))
+		term.Mul(term, coeff)
+		result.Add(result, term)
+	}
+
+	return result
+}
+
 // Mod returns the remainder of the polynomial divided by another polynomial.
 func (p *Polynomial) Mod(divisor *Polynomial) (*Polynomial, error) {
 	if p.isCyclotomic() { // Optimization for cyclotomic polynomials
