@@ -6,6 +6,7 @@ import (
 	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
 	"math/rand"
+	"pcg-master-thesis/pcg/poly"
 )
 
 // getShamirSharedRandomElement generates a t-out-of-n shamir secret sharing of a random element.
@@ -105,8 +106,10 @@ func outerProductFr(a, b []*bls12381.Fr) []*bls12381.Fr {
 
 // scalarMulFr multiplies a scalar with a vector of *bls12381.Fr elements.
 func scalarMulFr(scalar *bls12381.Fr, vector []*bls12381.Fr) []*bls12381.Fr {
+	result := make([]*bls12381.Fr, len(vector))
 	for i := 0; i < len(vector); i++ {
-		vector[i].Mul(vector[i], scalar)
+		result[i] = bls12381.NewFr()
+		result[i].Mul(vector[i], scalar)
 	}
 	return vector
 }
@@ -183,13 +186,44 @@ func frSliceToBigIntSlice(s []*bls12381.Fr) []*big.Int {
 	return result
 }
 
-// bigIntSliceToFrSlice converts a slice of *big.Int to a slice of *bls12381.Fr
-func bigIntSliceToFrSlice(s []*big.Int) []*bls12381.Fr {
-	result := make([]*bls12381.Fr, len(s))
-	for i, e := range s {
-		result[i] = bls12381.NewFr().FromBytes(e.Bytes())
+func hasDuplicates(slice []*big.Int) bool {
+	seen := make(map[string]struct{})
+	for _, value := range slice {
+		// Convert *big.Int to a string for comparison, as map keys need to be comparable
+		strValue := value.String()
+		if _, exists := seen[strValue]; exists {
+			// Duplicate found
+			return true
+		}
+		seen[strValue] = struct{}{}
 	}
-	return result
+	return false
+}
+
+func outerProductPoly(a, b []*poly.Polynomial) ([]*poly.Polynomial, error) {
+	res := make([]*poly.Polynomial, len(a)*len(b))
+	for i, aPoly := range a {
+		for j, bPoly := range b {
+			prod, err := poly.Mul(aPoly, bPoly)
+			if err != nil {
+				return nil, err
+			}
+			res[i*len(b)+j] = prod
+		}
+	}
+	return res, nil
+}
+
+func aggregateDSPFoutput(output [][]*big.Int) []*bls12381.Fr {
+	sums := make([]*bls12381.Fr, len(output))
+	for i := 0; i < len(output); i++ {
+		sums[i] = bls12381.NewFr()
+		for j := 0; j < len(output[0]); j++ {
+			val := bls12381.NewFr().FromBytes(output[i][j].Bytes())
+			sums[i].Add(sums[i], val)
+		}
+	}
+	return sums
 }
 
 // primeFactor represents a prime factor and its exponent.
