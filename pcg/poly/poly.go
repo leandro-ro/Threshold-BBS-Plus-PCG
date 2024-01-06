@@ -12,14 +12,14 @@ import (
 
 // Polynomial represents a polynomial in the form of a map: exponent -> coefficient.
 type Polynomial struct {
-	coefficients map[int]*bls12381.Fr // coefficients of the polynomial in the form of a map: exponent -> coefficient
+	Coefficients map[int]*bls12381.Fr // Coefficients of the polynomial in the form of a map: exponent -> coefficient
 }
 
 // Serialize returns the byte representation of the polynomial.
 func (p *Polynomial) Serialize() ([]byte, error) {
 	var buffer bytes.Buffer
 
-	for exponent, coefficient := range p.coefficients {
+	for exponent, coefficient := range p.Coefficients {
 		// Write the exponent
 		err := binary.Write(&buffer, binary.BigEndian, int32(exponent))
 		if err != nil {
@@ -38,7 +38,7 @@ func (p *Polynomial) Serialize() ([]byte, error) {
 func (p *Polynomial) Deserialize(data []byte) error {
 	buffer := bytes.NewBuffer(data)
 	var exponent int32
-	newPolynomial := &Polynomial{coefficients: make(map[int]*bls12381.Fr)}
+	newPolynomial := &Polynomial{Coefficients: make(map[int]*bls12381.Fr)}
 
 	for buffer.Len() > 0 {
 		// Read the exponent
@@ -56,7 +56,7 @@ func (p *Polynomial) Deserialize(data []byte) error {
 		coefficient := bls12381.NewFr()
 		coefficient.FromBytes(coeffBytes)
 
-		newPolynomial.coefficients[int(exponent)] = coefficient
+		newPolynomial.Coefficients[int(exponent)] = coefficient
 	}
 
 	p.Set(newPolynomial)
@@ -66,7 +66,7 @@ func (p *Polynomial) Deserialize(data []byte) error {
 // NewEmpty returns a new empty polynomial.
 func NewEmpty() *Polynomial {
 	return &Polynomial{
-		coefficients: make(map[int]*bls12381.Fr),
+		Coefficients: make(map[int]*bls12381.Fr),
 	}
 }
 
@@ -88,7 +88,7 @@ func NewFromSerialization(data []byte) (*Polynomial, error) {
 func NewFromFr(values []*bls12381.Fr) *Polynomial {
 	coefficients := make(map[int]*bls12381.Fr)
 	for i, v := range values {
-		// Ensure that only non-zero coefficients are stored for efficiency.
+		// Ensure that only non-zero Coefficients are stored for efficiency.
 		if !v.IsZero() {
 			coefficients[i] = bls12381.NewFr()
 			val := bls12381.NewFr().FromBytes(v.ToBytes()) // DeepCopy coefficient
@@ -97,7 +97,7 @@ func NewFromFr(values []*bls12381.Fr) *Polynomial {
 	}
 
 	return &Polynomial{
-		coefficients: coefficients,
+		Coefficients: coefficients,
 	}
 }
 
@@ -114,28 +114,28 @@ func NewFromBig(values []*big.Int) *Polynomial {
 	return NewFromFr(rValues)
 }
 
-// NewSparse creates a new sparse polynomial with the given coefficients and their exponents.
+// NewSparse creates a new sparse polynomial with the given Coefficients and their exponents.
 // The index of the coefficient will determine the respective exponent in the exponents slice.
-// E.g. coefficients = [1, 2, 3], exponents = [0, 1, 2] -> 1*x^0 + 2*x^1 + 3*x^2
+// E.g. Coefficients = [1, 2, 3], exponents = [0, 1, 2] -> 1*x^0 + 2*x^1 + 3*x^2
 func NewSparse(coefficients []*bls12381.Fr, exponents []*big.Int) (*Polynomial, error) {
 	if len(coefficients) != len(exponents) {
-		return nil, fmt.Errorf("length of coefficients and exponents must be equal")
+		return nil, fmt.Errorf("length of Coefficients and exponents must be equal")
 	}
 	if hasDuplicates(exponents) {
 		return nil, fmt.Errorf("exponents must be unique")
 	}
 
 	p := &Polynomial{
-		coefficients: make(map[int]*bls12381.Fr),
+		Coefficients: make(map[int]*bls12381.Fr),
 	}
 
 	for i, c := range coefficients {
-		// Ensure that only non-zero coefficients are stored for efficiency.
+		// Ensure that only non-zero Coefficients are stored for efficiency.
 		if !c.IsZero() {
 			index := int(exponents[i].Int64())
-			p.coefficients[index] = bls12381.NewFr()
+			p.Coefficients[index] = bls12381.NewFr()
 			val := bls12381.NewFr().FromBytes(c.ToBytes())
-			p.coefficients[index].Set(val)
+			p.Coefficients[index].Set(val)
 		}
 	}
 
@@ -165,9 +165,9 @@ func NewCyclotomicPolynomial(degree *big.Int) (*Polynomial, error) {
 	}
 	one := bls12381.NewFr().One()
 	poly := NewEmpty()
-	poly.coefficients[0] = bls12381.NewFr()
-	poly.coefficients[0].Neg(one)
-	poly.coefficients[int(degree.Int64())] = bls12381.NewFr().One()
+	poly.Coefficients[0] = bls12381.NewFr()
+	poly.Coefficients[0].Neg(one)
+	poly.Coefficients[int(degree.Int64())] = bls12381.NewFr().One()
 
 	return poly, nil
 }
@@ -175,7 +175,7 @@ func NewCyclotomicPolynomial(degree *big.Int) (*Polynomial, error) {
 // Degree returns the degree of the polynomial.
 // If the polynomial is empty, it returns an error.
 func (p *Polynomial) Degree() (int, error) {
-	deg, found := maxKey(p.coefficients)
+	deg, found := maxKey(p.Coefficients)
 	if !found {
 		return -1, fmt.Errorf("polynomial is empty")
 	}
@@ -184,12 +184,12 @@ func (p *Polynomial) Degree() (int, error) {
 
 // Equal checks if two polynomials are equal.
 func (p *Polynomial) Equal(q *Polynomial) bool {
-	if len(p.coefficients) != len(q.coefficients) { // Quick check
+	if len(p.Coefficients) != len(q.Coefficients) { // Quick check
 		return false
 	}
 
-	for exp, coeff := range p.coefficients {
-		if val, ok := q.coefficients[exp]; !ok || !val.Equal(coeff) {
+	for exp, coeff := range p.Coefficients {
+		if val, ok := q.Coefficients[exp]; !ok || !val.Equal(coeff) {
 			return false
 		}
 	}
@@ -200,12 +200,12 @@ func (p *Polynomial) Equal(q *Polynomial) bool {
 // DeepCopy returns a copy of the polynomial the function is being called on.
 func (p *Polynomial) DeepCopy() *Polynomial {
 	newPoly := &Polynomial{
-		coefficients: make(map[int]*bls12381.Fr),
+		Coefficients: make(map[int]*bls12381.Fr),
 	}
 
-	for exp, coeff := range p.coefficients {
+	for exp, coeff := range p.Coefficients {
 		val := bls12381.NewFr().FromBytes(coeff.ToBytes())
-		newPoly.coefficients[exp] = bls12381.NewFr().Set(val)
+		newPoly.Coefficients[exp] = bls12381.NewFr().Set(val)
 	}
 
 	return newPoly
@@ -214,12 +214,12 @@ func (p *Polynomial) DeepCopy() *Polynomial {
 // Set sets the polynomial to the polynomial given as argument.
 // It is not a copy, so be careful when using this function.
 func (p *Polynomial) Set(q *Polynomial) {
-	p.coefficients = q.coefficients
+	p.Coefficients = q.Coefficients
 }
 
-// AmountOfCoefficients returns the number of coefficients of the polynomial.
+// AmountOfCoefficients returns the number of Coefficients of the polynomial.
 func (p *Polynomial) AmountOfCoefficients() int {
-	return len(p.coefficients)
+	return len(p.Coefficients)
 }
 
 // String returns the string representation of the polynomial.
@@ -227,7 +227,7 @@ func (p *Polynomial) String() string {
 	degree, _ := p.Degree()
 	str := ""
 	for i := degree; i >= 0; i-- {
-		if val, ok := p.coefficients[i]; ok {
+		if val, ok := p.Coefficients[i]; ok {
 			str += fmt.Sprintf("%s*x^%d + ", val.ToBig().String(), i)
 		}
 	}
@@ -236,29 +236,30 @@ func (p *Polynomial) String() string {
 
 // Add adds two polynomials and stores the result in the polynomial the function is being called on.
 func (p *Polynomial) Add(q *Polynomial) {
-	for exp, coeff := range q.coefficients {
-		if val, ok := p.coefficients[exp]; ok {
+	for exp, coeff := range q.Coefficients {
+		if val, ok := p.Coefficients[exp]; ok {
 			val.Add(val, coeff)
 			if val.IsZero() {
-				delete(p.coefficients, exp)
+				delete(p.Coefficients, exp)
 			}
 		} else {
-			p.coefficients[exp] = bls12381.NewFr().FromBytes(coeff.ToBytes())
+			p.Coefficients[exp] = bls12381.NewFr().FromBytes(coeff.ToBytes())
 		}
 	}
 	return
 }
 
 // SparseBigAdd adds a slice of big.Int to a polynomial and stores the result in the polynomial the function is being called on.
-// The length of the slice must be equal to the number of coefficients of the polynomial.
+// The length of the slice must be equal to the number of Coefficients of the polynomial.
 func (p *Polynomial) SparseBigAdd(b []*big.Int) error {
-	if len(b) != len(p.coefficients) {
-		return fmt.Errorf("length of b must be equal to the number of coefficients of the polynomial")
+	if len(b) != len(p.Coefficients) {
+		return fmt.Errorf("length of b must be equal to the number of Coefficients of the polynomial")
 	}
 
 	i := 0
-	for _, coeff := range p.coefficients {
-		coeff.Add(coeff, bls12381.NewFr().FromBytes(b[i].Bytes()))
+	for _, coeff := range p.Coefficients {
+		valFr := bls12381.NewFr().FromBytes(coeff.ToBytes())
+		coeff.Add(coeff, valFr)
 		i++
 	}
 	return nil
@@ -266,29 +267,29 @@ func (p *Polynomial) SparseBigAdd(b []*big.Int) error {
 
 // Sub subtracts two polynomials and stores the result in the polynomial the function is being called on.
 func (p *Polynomial) Sub(q *Polynomial) {
-	for exp, coeff := range q.coefficients {
-		if val, ok := p.coefficients[exp]; ok {
+	for exp, coeff := range q.Coefficients {
+		if val, ok := p.Coefficients[exp]; ok {
 			val.Sub(val, coeff)
 			if val.IsZero() {
-				delete(p.coefficients, exp)
+				delete(p.Coefficients, exp)
 			}
 		} else {
-			p.coefficients[exp] = bls12381.NewFr().FromBytes(coeff.ToBytes()) // DeepCopy coefficient
-			p.coefficients[exp].Neg(p.coefficients[exp])
+			p.Coefficients[exp] = bls12381.NewFr().FromBytes(coeff.ToBytes()) // DeepCopy coefficient
+			p.Coefficients[exp].Neg(p.Coefficients[exp])
 		}
 	}
 }
 
 // MulByConstant multiplies the polynomial by a constant.
 func (p *Polynomial) MulByConstant(constant *bls12381.Fr) {
-	for _, coeff := range p.coefficients {
+	for _, coeff := range p.Coefficients {
 		coeff.Mul(coeff, constant)
 	}
 }
 
 // Mul multiplies two polynomials and stores the result in the polynomial the function is being called on.
 func (p *Polynomial) Mul(q *Polynomial) error {
-	if len(p.coefficients) > 1024 && len(q.coefficients) > 1024 {
+	if len(p.Coefficients) > 1024 && len(q.Coefficients) > 1024 {
 		return p.mulFFT(q)
 	} else {
 		return p.mulNaive(q)
@@ -320,19 +321,19 @@ func Sub(p, q *Polynomial) *Polynomial {
 	return res
 }
 
-// Sparseness returns the sparseness of the polynomial, hence it returns the number of non-zero coefficients.
-// E.g. x^2 + 2 = 1*x^2 + 0*x^1 + 2*x^0 -> 2 non-zero coefficients, hence 2-sparse.
+// Sparseness returns the sparseness of the polynomial, hence it returns the number of non-zero Coefficients.
+// E.g. x^2 + 2 = 1*x^2 + 0*x^1 + 2*x^0 -> 2 non-zero Coefficients, hence 2-sparse.
 func (p *Polynomial) Sparseness() int {
 	degree, err := p.Degree()
 	if err != nil {
 		return 0
 	}
-	return degree + 1 - len(p.coefficients) // +1 as we need to also account for the constant term, e.g. x^2 + 2 -> (degree: 2) + 1 - (coeff len: 1) = 2 sparse
+	return degree + 1 - len(p.Coefficients) // +1 as we need to also account for the constant term, e.g. x^2 + 2 -> (degree: 2) + 1 - (coeff len: 1) = 2 sparse
 }
 
 // GetCoefficient returns the coefficient of the given exponent.
 func (p *Polynomial) GetCoefficient(i int) (*bls12381.Fr, error) {
-	if val, ok := p.coefficients[i]; ok {
+	if val, ok := p.Coefficients[i]; ok {
 		ret := bls12381.NewFr().FromBytes(val.ToBytes()) // DeepCopy coefficient
 		return ret, nil
 	} else {
@@ -345,7 +346,7 @@ func (p *Polynomial) Evaluate(x *bls12381.Fr) *bls12381.Fr {
 	result := bls12381.NewFr()
 	result.Zero()
 
-	for exp, coeff := range p.coefficients {
+	for exp, coeff := range p.Coefficients {
 		term := bls12381.NewFr()
 		term.Exp(x, big.NewInt(int64(exp)))
 		term.Mul(term, coeff)
@@ -385,9 +386,9 @@ func (p *Polynomial) modNaive(divisor *Polynomial) (*Polynomial, error) {
 		leadingTermExponent := currentRemDeg - divisorDegree
 
 		inv := bls12381.NewFr()
-		inv.Inverse(divisor.coefficients[divisorDegree])
+		inv.Inverse(divisor.Coefficients[divisorDegree])
 		leadingTermCoefficient := bls12381.NewFr()
-		leadingTermCoefficient.Mul(remainder.coefficients[currentRemDeg], inv)
+		leadingTermCoefficient.Mul(remainder.Coefficients[currentRemDeg], inv)
 
 		monomial, err := NewSparse([]*bls12381.Fr{leadingTermCoefficient}, []*big.Int{big.NewInt(int64(leadingTermExponent))})
 		if err != nil {
@@ -425,20 +426,20 @@ func (p *Polynomial) modCyclotomic(divisor *Polynomial) (*Polynomial, error) {
 	}
 
 	remainder := NewEmpty()
-	// Iterate over all coefficients of p
-	for degree, coefficient := range p.coefficients {
+	// Iterate over all Coefficients of p
+	for degree, coefficient := range p.Coefficients {
 		newDegree := degree % divisorDegree
-		if val, ok := remainder.coefficients[newDegree]; ok {
+		if val, ok := remainder.Coefficients[newDegree]; ok {
 			// If there is already a coefficient at newDegree, add to it
 			val.Add(val, coefficient)
 			if val.IsZero() {
-				delete(remainder.coefficients, newDegree)
+				delete(remainder.Coefficients, newDegree)
 			}
 		} else {
 			// Otherwise, set the new coefficient at newDegree
 			coeffCopy := bls12381.NewFr().FromBytes(coefficient.ToBytes())
-			remainder.coefficients[newDegree] = bls12381.NewFr()
-			remainder.coefficients[newDegree].Set(coeffCopy)
+			remainder.Coefficients[newDegree] = bls12381.NewFr()
+			remainder.Coefficients[newDegree].Set(coeffCopy)
 		}
 	}
 
@@ -457,14 +458,14 @@ func (p *Polynomial) isCyclotomic() bool {
 	}
 
 	one := bls12381.NewFr().One()
-	if val, ok := p.coefficients[degree]; ok {
+	if val, ok := p.Coefficients[degree]; ok {
 		if !val.Equal(one) {
 			return false
 		}
 	} else {
 		return false
 	}
-	if val, ok := p.coefficients[0]; ok {
+	if val, ok := p.Coefficients[0]; ok {
 		oneNeg := bls12381.NewFr()
 		oneNeg.Neg(one)
 		if !val.Equal(oneNeg) {
@@ -478,12 +479,12 @@ func (p *Polynomial) isCyclotomic() bool {
 }
 
 // mulNaive multiplies two polynomials using the naive method in O(n^2).
-// note that this can be faster for polynomials with a small number of coefficients.
+// note that this can be faster for polynomials with a small number of Coefficients.
 func (p *Polynomial) mulNaive(q *Polynomial) error {
 	resultCoeffs := make(map[int]*bls12381.Fr) // Create a new map for the result
 
-	for expP, coeffP := range p.coefficients { // Iterate through map of p
-		for expQ, coeffQ := range q.coefficients { // Iterate through slice of q. This is more efficient than iterating through map of q.
+	for expP, coeffP := range p.Coefficients { // Iterate through map of p
+		for expQ, coeffQ := range q.Coefficients { // Iterate through slice of q. This is more efficient than iterating through map of q.
 			if !coeffQ.IsZero() {
 				exp := expP + expQ
 				product := bls12381.NewFr()
@@ -500,12 +501,12 @@ func (p *Polynomial) mulNaive(q *Polynomial) error {
 			}
 		}
 	}
-	p.coefficients = resultCoeffs
+	p.Coefficients = resultCoeffs
 	return nil
 }
 
 // mulFFT multiplies two polynomials using the FFT  in O(nlogn).
-// note that this can be faster for polynomials with a very large number of coefficients.
+// note that this can be faster for polynomials with a very large number of Coefficients.
 func (p *Polynomial) mulFFT(q *Polynomial) error {
 	coeffsP := polyAsCoefficientsBigInt(p)
 	coeffsQ := polyAsCoefficientsBigInt(q)
@@ -521,18 +522,18 @@ func (p *Polynomial) mulFFT(q *Polynomial) error {
 		return err
 	}
 
-	p.coefficients = NewFromBig(resultBig).coefficients
+	p.Coefficients = NewFromBig(resultBig).Coefficients
 	return nil
 }
 
-// polyAsCoefficientsBigInt returns the coefficients of the polynomial in the form of a slice.
+// polyAsCoefficientsBigInt returns the Coefficients of the polynomial in the form of a slice.
 // The index of the element will be its exponent.
-// Zero coefficients are also represented s.t. the full polynomial is represented by the slice.
+// Zero Coefficients are also represented s.t. the full polynomial is represented by the slice.
 func polyAsCoefficientsBigInt(p *Polynomial) []*big.Int {
 	degree, _ := p.Degree()
 	coefficients := make([]*big.Int, degree+1)
 	for i := 0; i < degree+1; i++ {
-		val, ok := p.coefficients[i]
+		val, ok := p.Coefficients[i]
 		if ok {
 			coefficients[i] = val.ToBig()
 		} else {

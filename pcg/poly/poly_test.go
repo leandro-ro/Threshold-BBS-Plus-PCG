@@ -13,7 +13,7 @@ func TestNewPoly(t *testing.T) {
 	slice := randomFrSlice(100)
 	poly := NewFromFr(slice)
 
-	assert.Equal(t, len(slice), len(poly.coefficients))
+	assert.Equal(t, len(slice), len(poly.Coefficients))
 }
 
 func TestSerialize(t *testing.T) {
@@ -47,7 +47,7 @@ func TestNewSparsePoly(t *testing.T) {
 	poly, err := NewSparse(coefficients, exponents)
 	assert.Nil(t, err)
 
-	assert.Equal(t, len(poly.coefficients), len(exponents))
+	assert.Equal(t, len(poly.Coefficients), len(exponents))
 }
 
 func TestEqual(t *testing.T) {
@@ -129,7 +129,7 @@ func TestAddPolys(t *testing.T) {
 
 	poly1.Add(poly2)
 	for i := 0; i < n; i++ {
-		assert.Equal(t, expected[i], poly1.coefficients[i])
+		assert.Equal(t, expected[i], poly1.Coefficients[i])
 	}
 }
 
@@ -161,7 +161,7 @@ func TestSubPolys(t *testing.T) {
 
 	poly1.Sub(poly2)
 	for i := 0; i < n; i++ {
-		assert.Equal(t, expected[i], poly1.coefficients[i])
+		assert.Equal(t, expected[i], poly1.Coefficients[i])
 	}
 }
 
@@ -196,7 +196,7 @@ func TestAddSubPolys(t *testing.T) {
 	poly1.Sub(poly2)
 
 	for i := 0; i < n; i++ {
-		assert.Equal(t, slice1[i], poly1.coefficients[i])
+		assert.Equal(t, slice1[i], poly1.Coefficients[i])
 	}
 }
 
@@ -217,7 +217,7 @@ func TestMulPolysNaive(t *testing.T) {
 	expectedValues := []*big.Int{big.NewInt(0), big.NewInt(765), big.NewInt(0), big.NewInt(180), big.NewInt(2553), big.NewInt(540), big.NewInt(336), big.NewInt(2100), big.NewInt(1008)}
 	expected := NewFromBig(expectedValues)
 
-	assert.Equal(t, len(expected.coefficients), len(aPoly.coefficients))
+	assert.Equal(t, len(expected.Coefficients), len(aPoly.Coefficients))
 	assert.True(t, expected.Equal(aPoly))
 }
 
@@ -284,7 +284,7 @@ func TestMulPolysFFT(t *testing.T) {
 	expectedValues := []*big.Int{big.NewInt(0), big.NewInt(765), big.NewInt(0), big.NewInt(180), big.NewInt(2553), big.NewInt(540), big.NewInt(336), big.NewInt(2100), big.NewInt(1008)}
 	expected := NewFromBig(expectedValues)
 
-	assert.Equal(t, len(expected.coefficients), len(result.coefficients))
+	assert.Equal(t, len(expected.Coefficients), len(result.Coefficients))
 	assert.True(t, expected.Equal(result))
 }
 
