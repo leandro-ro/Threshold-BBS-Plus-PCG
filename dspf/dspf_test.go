@@ -3,10 +3,12 @@ package dspf
 import (
 	"crypto/rand"
 	"fmt"
+	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	treedpf "pcg-master-thesis/dpf/2015_boyle_tree_based"
 	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
+	"pcg-master-thesis/pcg/poly"
 	"testing"
 )
 
@@ -307,6 +309,103 @@ func TestDSPFFullEvalFastOpTreeDPF(t *testing.T) {
 	assert.Equal(t, len(resFull), len(ys1))
 	for i := 0; i < len(resFull); i++ {
 		assert.Equal(t, 0, resFull[i].Cmp(nonZeroElements[i]))
+	}
+}
+
+func TestDSPFFullEvalFastOpTreeDPFSum(t *testing.T) {
+	domain := 10
+	treedpf128n10, err := optreedpf.InitFactory(128, domain) // Small domain size for testing
+	if err != nil {
+		t.Errorf("InitFactory returned an unexpected error: %v", err)
+	}
+	dspf := NewDSPFFactory(treedpf128n10)
+
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+
+	tCount := 6 // Number of random points and elements to generate
+	specialPoints := make([]*big.Int, tCount)
+	nonZeroElements := make([]*big.Int, tCount)
+
+	for i := 0; i < tCount; i++ {
+		x, err := rand.Int(rand.Reader, maxInputX)
+		if err != nil {
+			t.Errorf("Error generating random x: %v", err)
+		}
+		specialPoints[i] = x
+
+		y, err := rand.Int(rand.Reader, treedpf128n10.BetaMax) // Max input is the base field size
+		if err != nil {
+			t.Errorf("Error generating random y: %v", err)
+		}
+		nonZeroElements[i] = y
+	}
+
+	k1, k2, err := dspf.Gen(specialPoints, nonZeroElements)
+	if err != nil {
+		return
+	}
+
+	ys1, err := dspf.FullEvalFast(k1)
+	if err != nil {
+		t.Errorf("Eval returned an unexpected error: %v", err)
+	}
+
+	ys2, err := dspf.FullEvalFast(k2)
+	if err != nil {
+		t.Errorf("Eval returned an unexpected error: %v", err)
+	}
+
+	ys1summed := make([]*bls12381.Fr, len(ys1))
+	for i := 0; i < len(ys1); i++ {
+		ys1summed[i] = bls12381.NewFr()
+		for j := 0; j < len(ys1[0]); j++ {
+			val := bls12381.NewFr().FromBytes(ys1[i][j].Bytes())
+			ys1summed[i].Add(ys1summed[i], val)
+		}
+	}
+
+	ys2summed := make([]*bls12381.Fr, len(ys2))
+	for i := 0; i < len(ys2); i++ {
+		ys2summed[i] = bls12381.NewFr()
+		for j := 0; j < len(ys2[0]); j++ {
+			val := bls12381.NewFr().FromBytes(ys2[i][j].Bytes())
+			ys2summed[i].Add(ys2summed[i], val)
+		}
+	}
+
+	result := make([]*bls12381.Fr, tCount)
+	for i := 0; i < tCount; i++ {
+		result[i] = bls12381.NewFr()
+		result[i].Add(ys1summed[i], ys2summed[i])
+	}
+
+	for i := 0; i < tCount; i++ {
+		expected := bls12381.NewFr().FromBytes(nonZeroElements[i].Bytes())
+		assert.Equal(t, 0, result[i].Cmp(expected))
+	}
+
+	div := poly.NewEmpty()
+	one := bls12381.NewFr().One()
+	div.Coefficients[0] = bls12381.NewFr()
+	div.Coefficients[0].Neg(one)
+	div.Coefficients[int(maxInputX.Int64())] = bls12381.NewFr().One()
+
+	ys1Poly := poly.NewFromFr(ys1summed)
+	remainder1, _ := ys1Poly.Mod(div)
+	ys2Poly := poly.NewFromFr(ys2summed)
+	remainder2, _ := ys2Poly.Mod(div)
+
+	remResult := make([]*bls12381.Fr, tCount)
+	for i := 0; i < tCount; i++ {
+		remResult[i] = bls12381.NewFr()
+		coeff1, _ := remainder1.GetCoefficient(i)
+		coeff2, _ := remainder2.GetCoefficient(i)
+		remResult[i].Add(coeff1, coeff2)
+	}
+
+	for i := 0; i < tCount; i++ {
+		expected := bls12381.NewFr().FromBytes(nonZeroElements[i].Bytes())
+		assert.Equal(t, 0, remResult[i].Cmp(expected))
 	}
 }
 
