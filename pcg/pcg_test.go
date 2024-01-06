@@ -1,6 +1,7 @@
 package pcg
 
 import (
+	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
 	"math/big"
@@ -8,7 +9,7 @@ import (
 )
 
 func TestPCGCentralizedGen(t *testing.T) {
-	pcg, err := NewPCG(128, 20, 2, 4, 16)
+	pcg, err := NewPCG(128, 20, 2, 4, 4)
 	assert.Nil(t, err)
 
 	_, err = pcg.TrustedSeedGen()
@@ -16,58 +17,71 @@ func TestPCGCentralizedGen(t *testing.T) {
 }
 
 func TestPCGGen(t *testing.T) {
-	pcg, err := NewPCG(128, 12, 2, 4, 16)
+	pcg, err := NewPCG(128, 10, 2, 2, 4)
 	assert.Nil(t, err)
 
 	seeds, err := pcg.TrustedSeedGen()
 	assert.Nil(t, err)
 	assert.NotNil(t, seeds)
+	fmt.Println("Seed finished")
 
 	randPolys, err := pcg.PickRandomPolynomials()
 	assert.Nil(t, err)
 	assert.NotNil(t, randPolys)
 
-	eval0, err := pcg.Eval(seeds[0], randPolys)
+	ring, err := pcg.GetRing()
+	assert.Nil(t, err)
+	assert.NotNil(t, ring)
+
+	eval0, err := pcg.Eval(seeds[0], randPolys, ring.Div)
 	assert.Nil(t, err)
 	assert.NotNil(t, eval0)
-	eval1, err := pcg.Eval(seeds[1], randPolys)
+	fmt.Println("Eval0 finished")
+
+	eval1, err := pcg.Eval(seeds[1], randPolys, ring.Div)
 	assert.Nil(t, err)
 	assert.NotNil(t, eval1)
+	fmt.Println("Eval1 finished")
 
 	keyNr := 15
-	a := bls12381.NewFr()
-	a.Add(eval0[keyNr].AShare, eval1[keyNr].AShare)
+	root := ring.Roots[keyNr]
 
-	s := bls12381.NewFr()
-	s.Add(eval0[keyNr].SShare, eval1[keyNr].SShare)
-
-	e := bls12381.NewFr()
-	e.Add(eval0[keyNr].EShare, eval1[keyNr].EShare)
-
-	alpha := bls12381.NewFr()
-	alpha.Add(eval0[1].AlphaShare, eval1[1].AlphaShare)
-
-	delta := bls12381.NewFr()
-	delta.Add(eval0[keyNr].DeltaShare, eval1[keyNr].DeltaShare)
-
-	as := bls12381.NewFr()
-	as.Mul(a, s)
+	tuple0 := eval0.GenBBSPlusTuple(root)
+	tuple1 := eval1.GenBBSPlusTuple(root)
 
 	sk := bls12381.NewFr()
-	sk.Add(eval0[keyNr].SkShare, eval1[keyNr].SkShare)
+	sk.Add(tuple0.SkShare, tuple1.SkShare)
 
-	assert.Equal(t, 0, alpha.Cmp(as))
+	seedSk := bls12381.NewFr()
+	seedSk.Add(seeds[0].ski, seeds[1].ski)
+	assert.Equal(t, 0, sk.Cmp(seedSk))
+
+	a := bls12381.NewFr()
+	a.Add(tuple0.AShare, tuple1.AShare)
+
+	s := bls12381.NewFr()
+	s.Add(tuple0.SShare, tuple1.SShare)
+
+	e := bls12381.NewFr()
+	e.Add(tuple0.EShare, tuple1.EShare)
+
+	alpha := bls12381.NewFr()
+	alpha.Add(tuple0.AlphaShare, tuple1.AlphaShare)
+
+	delta0 := bls12381.NewFr()
+	delta0.Add(tuple0.Delta0Share, tuple1.Delta0Share)
+
+	delta1 := bls12381.NewFr()
+	delta1.Add(tuple0.Delta1Share, tuple1.Delta1Share)
+
+	delta := bls12381.NewFr()
+	delta.Add(tuple0.DeltaShare, tuple1.DeltaShare)
 
 	ask := bls12381.NewFr()
 	ask.Mul(a, sk)
 
-	ae := bls12381.NewFr()
-	ae.Mul(a, e)
+	assert.Equal(t, 0, ask.Cmp(delta0))
 
-	aske := bls12381.NewFr()
-	aske.Add(ask, ae)
-
-	assert.Equal(t, 0, delta.Cmp(aske))
 }
 
 func TestBLS12381GroupOrderFactorization(t *testing.T) {
