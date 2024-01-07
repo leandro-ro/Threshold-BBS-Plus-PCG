@@ -86,9 +86,9 @@ func TestPCGGen(t *testing.T) {
 	as := bls12381.NewFr()
 	as.Mul(a, s)
 
-	assert.Equal(t, 0, ask.Cmp(delta0))
-	//assert.Equal(t, 0, ae.Cmp(delta1))
-	//assert.Equal(t, 0, alpha.Cmp(as))
+	assert.Equal(t, 0, ae.Cmp(delta1)) // OLE Correlations are working as expected
+	assert.Equal(t, 0, alpha.Cmp(as))
+	assert.Equal(t, 0, ask.Cmp(delta0)) // TODO: This test fails
 }
 
 func TestPCGGenVOLE(t *testing.T) {
@@ -113,7 +113,7 @@ func TestPCGGenVOLE(t *testing.T) {
 	sk := bls12381.NewFr()
 	sk.Add(seeds[0].ski, seeds[1].ski)
 
-	keyNr := 60
+	keyNr := 2
 	root := ring.Roots[keyNr]
 
 	a0Eval := a0.Evaluate(root)

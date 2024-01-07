@@ -215,14 +215,17 @@ func outerProductPoly(a, b []*poly.Polynomial) ([]*poly.Polynomial, error) {
 }
 
 func aggregateDSPFoutput(output [][]*big.Int) []*bls12381.Fr {
-	sums := make([]*bls12381.Fr, len(output))
-	for i := 0; i < len(output); i++ {
-		sums[i] = bls12381.NewFr()
-		for j := 0; j < len(output[0]); j++ {
-			val := bls12381.NewFr().FromBytes(output[i][j].Bytes())
+	sums := make([]*bls12381.Fr, len(output[0]))
+	for i := 0; i < len(output[0]); i++ {
+		for j := 0; j < len(output); j++ {
+			if sums[i] == nil {
+				sums[i] = bls12381.NewFr()
+			}
+			val := bls12381.NewFr().FromBytes(output[j][i].Bytes())
 			sums[i].Add(sums[i], val)
 		}
 	}
+
 	return sums
 }
 

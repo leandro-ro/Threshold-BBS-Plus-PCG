@@ -15,7 +15,7 @@ var (
 // FrModulus is the modulus of Fr in BLS12-381
 const FrModulus = "73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"
 
-// FrPrimitiveRootOfUnity is the primitive root of unity for FrModulus.
+// FrPrimitiveRootOfUnity returns a generator for the multiplicative group of scalars.
 const FrPrimitiveRootOfUnity = "7"
 
 // FrNthRootOfUnity is the 2^Nth root of unity for FrModulus.

@@ -315,10 +315,6 @@ func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (
 		}
 
 		ai.Add(remainder)
-		ai, err = ai.Mod(div)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return ai, nil
@@ -363,6 +359,8 @@ func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedDSPFKeys [][][]*DSPFKey
 	for r := 0; r < p.c; r++ {
 		ur := u[r].DeepCopy()    // We need unmodified u[r] later on, so we copy it
 		ur.MulByConstant(seedSk) // u[r] * sk[i]
+		ur, _ = ur.Mod(div)
+
 		for i := 0; i < p.n; i++ {
 			if i == seedIndex {
 				for j := 0; j < p.n; j++ {
