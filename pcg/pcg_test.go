@@ -17,7 +17,7 @@ func TestPCGCentralizedGen(t *testing.T) {
 }
 
 func TestPCGGen(t *testing.T) {
-	pcg, err := NewPCG(128, 10, 2, 2, 4)
+	pcg, err := NewPCG(128, 9, 2, 2, 4)
 	assert.Nil(t, err)
 
 	seeds, err := pcg.TrustedSeedGen()
@@ -43,7 +43,7 @@ func TestPCGGen(t *testing.T) {
 	assert.NotNil(t, eval1)
 	fmt.Println("Eval1 finished")
 
-	keyNr := 15
+	keyNr := 2
 	root := ring.Roots[keyNr]
 
 	tuple0 := eval0.GenBBSPlusTuple(root)
@@ -68,10 +68,10 @@ func TestPCGGen(t *testing.T) {
 	alpha := bls12381.NewFr()
 	alpha.Add(tuple0.AlphaShare, tuple1.AlphaShare)
 
-	delta0 := bls12381.NewFr()
+	delta0 := bls12381.NewFr() // delta0 = ask
 	delta0.Add(tuple0.Delta0Share, tuple1.Delta0Share)
 
-	delta1 := bls12381.NewFr()
+	delta1 := bls12381.NewFr() // delta1 = ae
 	delta1.Add(tuple0.Delta1Share, tuple1.Delta1Share)
 
 	delta := bls12381.NewFr()
@@ -80,8 +80,15 @@ func TestPCGGen(t *testing.T) {
 	ask := bls12381.NewFr()
 	ask.Mul(a, sk)
 
-	assert.Equal(t, 0, ask.Cmp(delta0))
+	ae := bls12381.NewFr()
+	ae.Mul(a, e)
 
+	as := bls12381.NewFr()
+	as.Mul(a, s)
+
+	assert.Equal(t, 0, ask.Cmp(delta0))
+	//assert.Equal(t, 0, ae.Cmp(delta1))
+	//assert.Equal(t, 0, alpha.Cmp(as))
 }
 
 func TestBLS12381GroupOrderFactorization(t *testing.T) {

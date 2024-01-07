@@ -8,15 +8,15 @@ import (
 )
 
 type SeedExponents struct {
-	omega [][]*big.Int
-	eta   [][]*big.Int
-	phi   [][]*big.Int
+	aOmega [][]*big.Int // Exponents for a_i
+	eEta   [][]*big.Int // Exponents for e_i
+	sPhi   [][]*big.Int // Exponents for s_i
 }
 
 type SeedCoefficients struct {
-	beta    [][]*bls12381.Fr
-	gamma   [][]*bls12381.Fr
-	epsilon [][]*bls12381.Fr
+	aBeta    [][]*bls12381.Fr // Coefficients for a_i
+	eGamma   [][]*bls12381.Fr // Coefficients for e_i
+	sEpsilon [][]*bls12381.Fr // Coefficients for s_i
 }
 
 type DSPFKeyPair struct {

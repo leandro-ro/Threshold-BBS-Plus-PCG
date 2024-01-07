@@ -62,30 +62,30 @@ func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 	// 1. Generate key shares for each party
 	_, skShares := getShamirSharedRandomElement(p.rng, p.n, p.n) // TODO: determine how we want to set the threshold for the signature scheme
 
-	// 2a. Initialize omega, eta, and phi by sampling at random from N
-	omega := p.sampleExponents()
-	eta := p.sampleExponents()
-	phi := p.sampleExponents()
+	// 2a. Initialize aOmega, eEta, and sPhi by sampling at random from N
+	aOmega := p.sampleExponents() // a
+	eEta := p.sampleExponents()   // e
+	sPhi := p.sampleExponents()   // s
 
-	// 2b. Initialize beta, gamma and epsilon by sampling at random from F_q (bls12381.Fr)
-	beta := p.sampleCoefficients()
-	gamma := p.sampleCoefficients()
-	epsilon := p.sampleCoefficients()
+	// 2b. Initialize aBeta, eGamma and sEpsilon by sampling at random from F_q (via bls12381.Fr)
+	aBeta := p.sampleCoefficients()    // a
+	eGamma := p.sampleCoefficients()   // e
+	sEpsilon := p.sampleCoefficients() // s
 
-	// 3. Embed first part of delta correlation (sk*a)
-	U, err := p.embedVOLECorrelations(omega, beta, skShares)
+	// 3. Embed first part of delta (delta0) correlation (sk*a)
+	U, err := p.embedVOLECorrelations(aOmega, aBeta, skShares)
 	if err != nil {
 		return nil, fmt.Errorf("step 3: failed to generate DSPF keys for first part of delta VOLE correlation (sk * a): %w", err)
 	}
 
 	// 4a. Embed alpha correlation (a*s)
-	C, err := p.embedOLECorrelations(omega, eta, beta, gamma)
+	C, err := p.embedOLECorrelations(aOmega, sPhi, aBeta, sEpsilon)
 	if err != nil {
 		return nil, fmt.Errorf("step 4: failed to generate DSPF keys for alpha OLE correlation (a * s): %w", err)
 	}
 
-	// 4b. Embed second part of delta correlation (a*e)
-	V, err := p.embedOLECorrelations(omega, phi, beta, epsilon)
+	// 4b. Embed second part of delta (delta1) correlation (a*e)
+	V, err := p.embedOLECorrelations(aOmega, eEta, aBeta, eGamma)
 	if err != nil {
 		return nil, fmt.Errorf("step 4: failed to generate DSPF keys for second part of delta OLE correlation (a * e): %w", err)
 	}
@@ -97,16 +97,16 @@ func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 			index: i,
 			ski:   skShares[i],
 			exponents: SeedExponents{
-				omega: omega[i],
-				eta:   eta[i],
-				phi:   phi[i],
+				aOmega: aOmega[i],
+				eEta:   eEta[i],
+				sPhi:   sPhi[i],
 			},
 			coefficients: SeedCoefficients{
-				beta:    beta[i],
-				gamma:   gamma[i],
-				epsilon: epsilon[i],
+				aBeta:    aBeta[i],
+				eGamma:   eGamma[i],
+				sEpsilon: sEpsilon[i],
 			},
-			U: U,
+			U: U, // TODO: We are currently sending all U, C and V to each party. This is not necessary, as each party only needs the U, C and V for their index
 			C: C,
 			V: V,
 		}
@@ -127,44 +127,37 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 
 	// 1. Generate polynomials
 	fmt.Println("Generating polynomials")
-	u, err := p.constructPolys(seed.coefficients.beta, seed.exponents.omega)
+	u, err := p.constructPolys(seed.coefficients.aBeta, seed.exponents.aOmega)
 	if err != nil {
-		return nil, fmt.Errorf("step 1: failed to generate polynomials for u from beta and omega: %w", err)
+		return nil, fmt.Errorf("step 1: failed to generate polynomials for u from aBeta and aOmega: %w", err)
 	}
-	v, err := p.constructPolys(seed.coefficients.gamma, seed.exponents.eta)
+	v, err := p.constructPolys(seed.coefficients.eGamma, seed.exponents.eEta)
 	if err != nil {
-		return nil, fmt.Errorf("step 1: failed to generate polynomials for v from gamma and eta: %w", err)
+		return nil, fmt.Errorf("step 1: failed to generate polynomials for v from eGamma and eEta: %w", err)
 	}
-	k, err := p.constructPolys(seed.coefficients.epsilon, seed.exponents.phi)
+	k, err := p.constructPolys(seed.coefficients.sEpsilon, seed.exponents.sPhi)
 	if err != nil {
-		return nil, fmt.Errorf("step 1: failed to generate polynomials for k from epsilon and phi: %w", err)
+		return nil, fmt.Errorf("step 1: failed to generate polynomials for k from sEpsilon and sPhi: %w", err)
 	}
 
-	// 2. Process VOLE (u) with seed
+	// 2. Process VOLE (u) with seed / delta0 = ask
 	fmt.Println("Processing VOLE")
-	utilde, err := p.evalVOLEwithSeed(u, seed, div)
+	utilde, err := p.evalVOLEwithSeed(u, seed.U, seed.index, seed.ski, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 2: failed to evaluate VOLE (utilde): %w", err)
 	}
-	// 3. Process first OLE correlation (u, v) with seed
+	// 3. Process first OLE correlation (u, k) with seed / alpha = as
 	fmt.Println("Processing #1 OLE")
-	w, err := p.evalOLEwithSeed(u, v, seed, div)
+	w, err := p.evalOLEwithSeed(u, k, seed.C, seed.index, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 3: failed to evaluate OLE (w): %w", err)
 	}
-	// 4. Process second OLE correlation (u, k) with seed
+	// 4. Process second OLE correlation (u, v) with seed /  delta1 = ae
 	fmt.Println("Processing #2 OLE")
-	m, err := p.evalOLEwithSeed(u, k, seed, div)
+	m, err := p.evalOLEwithSeed(u, v, seed.V, seed.index, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 4: failed to evaluate OLE (m): %w", err)
 	}
-
-	// Calculate divisor polynomial (for efficient modulus we use a cyclotomic polynomial)
-	//twoPowN := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
-	//div, err := poly.NewCyclotomicPolynomial(twoPowN) // div = x^N^2 + neg(1)
-	//if err != nil {
-	//	return nil, err
-	//}
 
 	// 5. Calculate final shares
 	fmt.Println("Calculating final shares")
@@ -172,17 +165,17 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share ai: %w", err)
 	}
-	si, err := p.evalFinalShare(v, rand, div)
-	if err != nil {
-		return nil, fmt.Errorf("step 5: failed to evaluate final share si: %w", err)
-	}
-	ei, err := p.evalFinalShare(k, rand, div)
+	ei, err := p.evalFinalShare(v, rand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share ei: %w", err)
 	}
-	delta1i, err := p.evalFinalShare(utilde, rand, div)
+	si, err := p.evalFinalShare(k, rand, div)
 	if err != nil {
-		return nil, fmt.Errorf("step 5: failed to evaluate final share delta1i: %w", err)
+		return nil, fmt.Errorf("step 5: failed to evaluate final share ki: %w", err)
+	}
+	delta0i, err := p.evalFinalShare(utilde, rand, div)
+	if err != nil {
+		return nil, fmt.Errorf("step 5: failed to evaluate final share delta0i: %w", err)
 	}
 
 	oprand, err := outerProductPoly(rand, rand) // This is probably the only time FFT is used for multiplication
@@ -195,12 +188,12 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share alphai: %w", err)
 	}
-	delta0i, err := p.evalFinalShare2D(m, oprand, div)
+	delta1i, err := p.evalFinalShare2D(m, oprand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share delta1i: %w", err)
 	}
 
-	return NewBBSPlusTupleGenerator(seed.ski, ai, si, ei, alphai, delta0i, delta1i), nil
+	return NewBBSPlusTupleGenerator(seed.ski, ai, ei, si, alphai, delta0i, delta1i), nil
 }
 
 // PickRandomPolynomials picks c random polynomials of degree N. The last polynomial is not random and always 1.
@@ -290,22 +283,24 @@ func (p *PCG) GetRing() (*Ring, error) {
 // This function effectively calculates the inner product between the given polynomial and the random polynomials in div.
 func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (*poly.Polynomial, error) {
 	ai := poly.NewEmpty()
-	for j := 0; j < p.c-1; j++ {
-		prod, err := poly.Mul(rand[j], u[j])
+	for r := 0; r < p.c; r++ {
+		prod, err := poly.Mul(rand[r], u[r])
 		if err != nil {
 			return nil, err
 		}
+
 		remainder, err := prod.Mod(div)
 		if err != nil {
 			return nil, err
 		}
+
 		ai.Add(remainder)
+		ai, err = ai.Mod(div)
+		if err != nil {
+			return nil, err
+		}
 	}
-	finalValU, err := u[p.c-1].Mod(div)
-	if err != nil {
-		return nil, err
-	}
-	ai.Add(finalValU) // rand[c-1] is always 1, hence instead of multiplying we can just add
+
 	return ai, nil
 }
 
@@ -313,63 +308,78 @@ func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (
 // This function effectively calculates the inner product between the given polynomial and the random polynomials in div.
 func (p *PCG) evalFinalShare2D(w [][]*poly.Polynomial, oprand []*poly.Polynomial, div *poly.Polynomial) (*poly.Polynomial, error) {
 	alphai := poly.NewEmpty()
-	for j := 0; j < p.c-1; j++ {
-		for k := 0; k < p.c-1; k++ {
-			prod, err := poly.Mul(oprand[j*p.c+k], w[j][k])
-			if err != nil {
-				return nil, err
+	for j := 0; j < p.c; j++ {
+		for k := 0; k < p.c; k++ {
+			currentIndex := j*p.c + k
+			if currentIndex != p.c*p.c-1 { // rand[c-1] is always 1, hence instead of multiplying we can just add
+				oprandMod, err := oprand[currentIndex].Mod(div)
+				if err != nil {
+					return nil, err
+				}
+				prod, err := poly.Mul(oprandMod, w[j][k])
+				if err != nil {
+					return nil, err
+				}
+				remainder, err := prod.Mod(div)
+				if err != nil {
+					return nil, err
+				}
+				alphai.Add(remainder)
+			} else {
+				remainder, err := w[j][k].Mod(div)
+				if err != nil {
+					return nil, err
+				}
+				alphai.Add(remainder)
 			}
-			remainder, err := prod.Mod(div)
-			if err != nil {
-				return nil, err
-			}
-			alphai.Add(remainder)
 		}
 	}
-	finalValW, err := w[p.c-1][p.c-1].Mod(div)
-	if err != nil {
-		return nil, err
-	}
-	alphai.Add(finalValW) // oprand[c*c-1] is always 1, we can just add w[c-1][c-1] it
 	return alphai, nil
 }
 
 // evalVOLEwithSeed evaluates the VOLE correlation with the given seed.
-func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seed *Seed, div *poly.Polynomial) ([]*poly.Polynomial, error) {
+func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedDSPFKeys [][][]*DSPFKeyPair, seedIndex int, seedSk *bls12381.Fr, div *poly.Polynomial) ([]*poly.Polynomial, error) {
 	utilde := make([]*poly.Polynomial, p.c)
 	for r := 0; r < p.c; r++ {
-		ur := u[r].DeepCopy()      // We need unmodified u[r] later on, so we copy it
-		ur.MulByConstant(seed.ski) // u[r] * sk[i]
-		for i := 0; i < p.n; i++ { // Ony cross terms
-			for j := 0; j < p.n; j++ {
-				if i != j {
-					eval0, err := p.dspfN.FullEvalFast(seed.U[i][j][r].Key0)
-					if err != nil {
-						return nil, err
-					}
-					eval0Aggregated := aggregateDSPFoutput(eval0) // TODO: Workaround... make this more elegant
-					eval0Poly := poly.NewFromFr(eval0Aggregated)
-					ur.Add(eval0Poly)
+		ur := u[r].DeepCopy()    // We need unmodified u[r] later on, so we copy it
+		ur.MulByConstant(seedSk) // u[r] * sk[i]
+		for i := 0; i < p.n; i++ {
+			if i == seedIndex {
+				for j := 0; j < p.n; j++ {
+					if i != j {
+						fmt.Println("i:", i, " j:", j, " / j:", j, " i:", i)
+						eval0, err := p.dspfN.FullEvalFast(seedDSPFKeys[i][j][r].Key0)
+						if err != nil {
+							return nil, err
+						}
+						eval0Aggregated := aggregateDSPFoutput(eval0) // TODO: Workaround... make this more elegant
+						eval0Poly := poly.NewFromFr(eval0Aggregated)
+						ur.Add(eval0Poly)
 
-					ur, err = ur.Mod(div)
-					if err != nil {
-						return nil, err
-					}
+						ur, err = ur.Mod(div)
+						if err != nil {
+							return nil, err
+						}
 
-					eval1, err := p.dspfN.FullEvalFast(seed.U[i][j][r].Key1)
-					if err != nil {
-						return nil, err
-					}
-					eval1Aggregated := aggregateDSPFoutput(eval1) // TODO: Workaround... make this more elegant
-					eval1Poly := poly.NewFromFr(eval1Aggregated)
-					ur.Add(eval1Poly)
+						eval1, err := p.dspfN.FullEvalFast(seedDSPFKeys[j][i][r].Key1)
+						if err != nil {
+							return nil, err
+						}
+						eval1Aggregated := aggregateDSPFoutput(eval1) // TODO: Workaround... make this more elegant
+						eval1Poly := poly.NewFromFr(eval1Aggregated)
+						ur.Add(eval1Poly)
 
-					ur, err = ur.Mod(div)
-					if err != nil {
-						return nil, err
+						ur, err = ur.Mod(div)
+						if err != nil {
+							return nil, err
+						}
 					}
 				}
 			}
+		}
+		ur, err := ur.Mod(div)
+		if err != nil {
+			return nil, err
 		}
 		utilde[r] = ur
 	}
@@ -377,7 +387,7 @@ func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seed *Seed, div *poly.Polyn
 }
 
 // evalOLEwithSeed evaluates the OLE correlation with the given seed.
-func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seed *Seed, div *poly.Polynomial) ([][]*poly.Polynomial, error) {
+func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSPFKeyPair, seedIndex int, div *poly.Polynomial) ([][]*poly.Polynomial, error) {
 	w := make([][]*poly.Polynomial, p.c)
 	for r := 0; r < p.c; r++ {
 		w[r] = make([]*poly.Polynomial, p.c)
@@ -386,36 +396,47 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seed *Seed, div *poly.Pol
 			if err != nil {
 				return nil, err
 			}
+			wrs, err = wrs.Mod(div)
+			if err != nil {
+				return nil, err
+			}
 			for i := 0; i < p.n; i++ {
-				for j := 0; j < p.n; j++ {
-					if i != j { // Ony cross terms
-						eval0, err := p.dspf2N.FullEvalFast(seed.C[i][j][r][s].Key0)
-						if err != nil {
-							return nil, err
-						}
-						eval0Aggregated := aggregateDSPFoutput(eval0) // TODO: Workaround... make this more elegant
-						eval0Poly := poly.NewFromFr(eval0Aggregated)
-						wrs.Add(eval0Poly)
+				if i == seedIndex {
+					for j := 0; j < p.n; j++ {
+						if i != j { // Ony cross terms
+							fmt.Println("i:", i, " j:", j, " / j:", j, " i:", i)
+							eval0, err := p.dspf2N.FullEvalFast(seedDSPFKeys[i][j][r][s].Key0)
+							if err != nil {
+								return nil, err
+							}
+							eval0Aggregated := aggregateDSPFoutput(eval0) // TODO: Workaround... make this more elegant
+							eval0Poly := poly.NewFromFr(eval0Aggregated)
+							wrs.Add(eval0Poly)
 
-						wrs, err = wrs.Mod(div)
-						if err != nil {
-							return nil, err
-						}
+							wrs, err = wrs.Mod(div)
+							if err != nil {
+								return nil, err
+							}
 
-						eval1, err := p.dspf2N.FullEvalFast(seed.C[i][j][r][s].Key1)
-						if err != nil {
-							return nil, err
-						}
-						eval1Aggregated := aggregateDSPFoutput(eval1) // TODO: Workaround... make this more elegant
-						eval1Poly := poly.NewFromFr(eval1Aggregated)
-						wrs.Add(eval1Poly)
+							eval1, err := p.dspf2N.FullEvalFast(seedDSPFKeys[j][i][r][s].Key1)
+							if err != nil {
+								return nil, err
+							}
+							eval1Aggregated := aggregateDSPFoutput(eval1) // TODO: Workaround... make this more elegant
+							eval1Poly := poly.NewFromFr(eval1Aggregated)
+							wrs.Add(eval1Poly)
 
-						wrs, err = wrs.Mod(div)
-						if err != nil {
-							return nil, err
+							wrs, err = wrs.Mod(div)
+							if err != nil {
+								return nil, err
+							}
 						}
 					}
 				}
+			}
+			wrs, err = wrs.Mod(div)
+			if err != nil {
+				return nil, err
 			}
 			w[r][s] = wrs
 		}
@@ -451,8 +472,8 @@ func (p *PCG) embedOLECorrelations(omega, o [][][]*big.Int, beta, b [][][]*bls12
 			if i != j {
 				for r := 0; r < p.c; r++ {
 					for s := 0; s < p.c; s++ {
-						specialPoints := outerSumBigInt(omega[i][r], o[j][s]) // We can only change o, as omega is used in the other OLE correlation
-						// TODO: Find a fix for this!
+						specialPoints := outerSumBigInt(omega[i][r], o[j][s])
+						// TODO: Find a fix for this! We need to ensure that the special points are unique.
 						if hasDuplicates(specialPoints) {
 							return nil, fmt.Errorf("special points contain duplicates")
 						}
