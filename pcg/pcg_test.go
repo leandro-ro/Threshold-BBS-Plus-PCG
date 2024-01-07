@@ -29,7 +29,7 @@ func TestPCGGen(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, randPolys)
 
-	ring, err := pcg.GetRing()
+	ring, err := pcg.GetRing(true)
 	assert.Nil(t, err)
 	assert.NotNil(t, ring)
 
@@ -92,7 +92,7 @@ func TestPCGGen(t *testing.T) {
 }
 
 func TestPCGGenVOLE(t *testing.T) {
-	pcg, err := NewPCG(128, 15, 2, 4, 16)
+	pcg, err := NewPCG(128, 10, 2, 4, 16)
 	assert.Nil(t, err)
 
 	seeds, err := pcg.SeedGenVOLE()
@@ -103,7 +103,7 @@ func TestPCGGenVOLE(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, randPolys)
 
-	ring, err := pcg.GetRing()
+	ring, err := pcg.GetRing(true)
 	assert.Nil(t, err)
 	assert.NotNil(t, ring)
 
@@ -113,7 +113,7 @@ func TestPCGGenVOLE(t *testing.T) {
 	sk := bls12381.NewFr()
 	sk.Add(seeds[0].ski, seeds[1].ski)
 
-	keyNr := 2
+	keyNr := 60
 	root := ring.Roots[keyNr]
 
 	a0Eval := a0.Evaluate(root)

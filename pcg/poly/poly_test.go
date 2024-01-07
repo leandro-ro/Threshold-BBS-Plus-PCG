@@ -236,6 +236,13 @@ func TestEvaluate(t *testing.T) {
 	bPoly := NewEmpty()
 	resultb := bPoly.Evaluate(x)
 	assert.Equal(t, bls12381.NewFr().Zero(), resultb)
+
+	// Test polynomial c: c(x) = 10x + 10
+	ref := big.NewInt(10)
+	cPoly := NewFromBig([]*big.Int{ref, ref})
+	resultc := cPoly.Evaluate(x)
+	expectedResult := bls12381.NewFr().FromBytes(big.NewInt(150).Bytes())
+	assert.Equal(t, expectedResult, resultc)
 }
 
 func TestSeparateMul(t *testing.T) {
