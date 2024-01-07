@@ -225,8 +225,8 @@ type Ring struct {
 	Roots []*bls12381.Fr
 }
 
-// Uses cyclotomic polynomials to define the ring.
-func (p *PCG) GetRing() (*Ring, error) {
+// Define the ring we are calculating in.
+func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 	// Define the Ring we work in
 	smallFactorThreshold := big.NewInt(1000)
 	groupOrderFactorization := multiplicativeGroupOrderFactorizationBLS12381()
@@ -265,15 +265,35 @@ func (p *PCG) GetRing() (*Ring, error) {
 	smoothOrderDivN := new(big.Int).Div(smoothOrder, twoPowN)
 	powerIteratorBase := new(big.Int).Exp(multiplicativeSmoothGroupGenerator, smoothOrderDivN, groupOrder)
 
+	// init div as 1 poly
+	div := poly.NewFromFr([]*bls12381.Fr{bls12381.NewFr().One()})
 	roots := make([]*bls12381.Fr, twoPowN.Int64())
 	for i := 0; i < int(twoPowN.Int64()); i++ {
-		val := new(big.Int).Exp(powerIteratorBase, big.NewInt(int64(i+1)), groupOrder)
-		roots[i] = bls12381.NewFr().FromBytes(val.Bytes())
+		if useCyclotomic {
+			val := new(big.Int).Exp(powerIteratorBase, big.NewInt(int64(i+1)), groupOrder)
+			roots[i] = bls12381.NewFr().FromBytes(val.Bytes())
+		} else {
+			val, err := bls12381.NewFr().Rand(p.rng)
+			if err != nil {
+				return nil, err
+			}
+
+			bZero := big.NewInt(0).Sub(groupOrder, val.ToBig())
+			bOne := big.NewInt(1)
+			b := poly.NewFromBig([]*big.Int{bZero, bOne})
+
+			err = div.Mul(b)
+			if err != nil {
+				return nil, err
+			}
+
+			roots[i] = val
+		}
+
 	}
 
-	div, err := poly.NewCyclotomicPolynomial(twoPowN) // div = x^N^2 + neg(1)
-	if err != nil {
-		return nil, err
+	if useCyclotomic {
+		div, _ = poly.NewCyclotomicPolynomial(twoPowN) // div = x^N^2 + neg(1)
 	}
 
 	return &Ring{div, roots}, nil
