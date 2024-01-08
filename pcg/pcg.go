@@ -3,6 +3,7 @@ package pcg
 import (
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
+	"log"
 	"math/big"
 	"math/rand"
 	"pcg-master-thesis/dpf"
@@ -25,7 +26,7 @@ type PCG struct {
 
 // NewPCG creates a new PCG with the given parameters.
 // lambda is the security parameter
-// N is the domain determines the amount of presignatures that can be generated
+// N is the domain determines the amount of presignatures (2^N) that can be generated
 // n is the number of parties participating in this PCG
 // c is the first security parameter of the Module-LPN assumption
 // t is the second security parameter of the Module-LPN assumption
@@ -96,12 +97,12 @@ func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 		seeds[i] = &Seed{
 			index: i,
 			ski:   skShares[i],
-			exponents: SeedExponents{
+			exponents: seedExponents{
 				aOmega: aOmega[i],
 				eEta:   eEta[i],
 				sPhi:   sPhi[i],
 			},
-			coefficients: SeedCoefficients{
+			coefficients: seedCoefficients{
 				aBeta:    aBeta[i],
 				eGamma:   eGamma[i],
 				sEpsilon: sEpsilon[i],
@@ -125,8 +126,9 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 		return nil, fmt.Errorf("rand must be a slice of polynomials with polynomial of the the last index rand[c-1] equal to 1")
 	}
 
+	log.Println("Evaluating PCG for ", seed.index)
 	// 1. Generate polynomials
-	fmt.Println("Generating polynomials")
+	log.Println("Generating polynomials")
 	u, err := p.constructPolys(seed.coefficients.aBeta, seed.exponents.aOmega)
 	if err != nil {
 		return nil, fmt.Errorf("step 1: failed to generate polynomials for u from aBeta and aOmega: %w", err)
@@ -141,26 +143,26 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 	}
 
 	// 2. Process VOLE (u) with seed / delta0 = ask
-	fmt.Println("Processing VOLE")
+	log.Println("Processing VOLE (delta0 = ask)")
 	utilde, err := p.evalVOLEwithSeed(u, seed.ski, seed.U, seed.index, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 2: failed to evaluate VOLE (utilde): %w", err)
 	}
 	// 3. Process first OLE correlation (u, k) with seed / alpha = as
-	fmt.Println("Processing #1 OLE")
+	log.Println("Processing #1 OLE (alpha = as)")
 	w, err := p.evalOLEwithSeed(u, k, seed.C, seed.index, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 3: failed to evaluate OLE (w): %w", err)
 	}
 	// 4. Process second OLE correlation (u, v) with seed /  delta1 = ae
-	fmt.Println("Processing #2 OLE")
+	log.Println("Processing #2 OLE (delta1 = ae)")
 	m, err := p.evalOLEwithSeed(u, v, seed.V, seed.index, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 4: failed to evaluate OLE (m): %w", err)
 	}
 
 	// 5. Calculate final shares
-	fmt.Println("Calculating final share polynomials")
+	log.Println("Calculating final share polynomials")
 	ai, err := p.evalFinalShare(u, rand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share ai: %w", err)
@@ -178,12 +180,12 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 		return nil, fmt.Errorf("step 5: failed to evaluate final share delta0i: %w", err)
 	}
 
-	oprand, err := outerProductPoly(rand, rand) // This is probably the only time FFT is used for multiplication
+	oprand, err := outerProductPoly(rand, rand)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("Calculating final share polynomials 2D")
+	log.Println("Calculating final share polynomials 2D")
 	alphai, err := p.evalFinalShare2D(w, oprand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share alphai: %w", err)
@@ -365,7 +367,6 @@ func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedSk *bls12381.Fr, seedDS
 			if i == seedIndex {
 				for j := 0; j < p.n; j++ {
 					if i != j {
-						fmt.Println("i:", i, " j:", j, " / j:", j, " i:", i)
 						eval0, err := p.dspfN.FullEvalFast(seedDSPFKeys[i][j][r].Key0)
 						if err != nil {
 							return nil, err
@@ -418,7 +419,6 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 				if i == seedIndex {
 					for j := 0; j < p.n; j++ {
 						if i != j { // Ony cross terms
-							fmt.Println("i:", i, " j:", j, " / j:", j, " i:", i)
 							eval0, err := p.dspf2N.FullEvalFast(seedDSPFKeys[i][j][r][s].Key0)
 							if err != nil {
 								return nil, err

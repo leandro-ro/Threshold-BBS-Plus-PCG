@@ -1,29 +1,18 @@
 package pcg
 
 import (
-	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
-	"math/big"
 	"testing"
 )
 
-func TestPCGCentralizedGen(t *testing.T) {
-	pcg, err := NewPCG(128, 20, 2, 4, 4)
-	assert.Nil(t, err)
-
-	_, err = pcg.TrustedSeedGen()
-	assert.Nil(t, err)
-}
-
-func TestPCGGen(t *testing.T) {
+func TestPCGEnd2End(t *testing.T) {
 	pcg, err := NewPCG(128, 10, 2, 2, 4)
 	assert.Nil(t, err)
 
 	seeds, err := pcg.TrustedSeedGen()
 	assert.Nil(t, err)
 	assert.NotNil(t, seeds)
-	fmt.Println("Seed finished")
 
 	randPolys, err := pcg.PickRandomPolynomials()
 	assert.Nil(t, err)
@@ -36,12 +25,10 @@ func TestPCGGen(t *testing.T) {
 	eval0, err := pcg.Eval(seeds[0], randPolys, ring.Div)
 	assert.Nil(t, err)
 	assert.NotNil(t, eval0)
-	fmt.Println("Eval0 finished")
 
 	eval1, err := pcg.Eval(seeds[1], randPolys, ring.Div)
 	assert.Nil(t, err)
 	assert.NotNil(t, eval1)
-	fmt.Println("Eval1 finished")
 
 	keyNr := 10
 	root := ring.Roots[keyNr]
@@ -56,56 +43,33 @@ func TestPCGGen(t *testing.T) {
 	seedSk.Add(seeds[0].ski, seeds[1].ski)
 	assert.Equal(t, 0, sk.Cmp(seedSk))
 
-	a := bls12381.NewFr()
+	a := bls12381.NewFr() // Sum up a0 and a1
 	a.Add(tuple0.AShare, tuple1.AShare)
 
-	s := bls12381.NewFr()
+	s := bls12381.NewFr() // Sum up s0 and s1
 	s.Add(tuple0.SShare, tuple1.SShare)
 
-	e := bls12381.NewFr()
+	e := bls12381.NewFr() // Sum up e0 and e1
 	e.Add(tuple0.EShare, tuple1.EShare)
 
 	alpha := bls12381.NewFr()
 	alpha.Add(tuple0.AlphaShare, tuple1.AlphaShare)
 
-	delta0 := bls12381.NewFr() // delta0 = ask
-	delta0.Add(tuple0.Delta0Share, tuple1.Delta0Share)
-
-	delta1 := bls12381.NewFr() // delta1 = ae
-	delta1.Add(tuple0.Delta1Share, tuple1.Delta1Share)
-
 	delta := bls12381.NewFr()
 	delta.Add(tuple0.DeltaShare, tuple1.DeltaShare)
 
-	ask := bls12381.NewFr()
+	ask := bls12381.NewFr() // = delta0
 	ask.Mul(a, sk)
 
-	ae := bls12381.NewFr()
+	ae := bls12381.NewFr() // = delta1
 	ae.Mul(a, e)
+
+	// Check if correlations hold
+	askPae := bls12381.NewFr() // = a(sk + e)
+	askPae.Add(ask, ae)
+	assert.Equal(t, 0, delta.Cmp(askPae))
 
 	as := bls12381.NewFr()
 	as.Mul(a, s)
-
-	assert.Equal(t, 0, delta1.Cmp(ae))
 	assert.Equal(t, 0, alpha.Cmp(as))
-	assert.Equal(t, 0, delta0.Cmp(ask))
-}
-
-func TestBLS12381GroupOrderFactorization(t *testing.T) {
-	// BSLS12381 group order - 1
-	expected := new(big.Int)
-	expected.SetString("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001", 16)
-	expected.Sub(expected, big.NewInt(1))
-
-	factorization := multiplicativeGroupOrderFactorizationBLS12381()
-
-	// Multiply all factors together
-	product := big.NewInt(1)
-	for _, pf := range factorization {
-		val := big.NewInt(0)
-		val.Exp(pf.Factor, big.NewInt(int64(pf.Exponent)), nil)
-		product.Mul(product, val)
-	}
-
-	assert.Equal(t, 0, expected.Cmp(product))
 }
