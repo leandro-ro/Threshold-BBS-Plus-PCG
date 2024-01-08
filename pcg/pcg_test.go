@@ -73,3 +73,59 @@ func TestPCGEnd2End(t *testing.T) {
 	as.Mul(a, s)
 	assert.Equal(t, 0, alpha.Cmp(as))
 }
+
+// Benchmarking TrustedSeedGen
+func BenchmarkTrustedSeedGenN20n2(b *testing.B) { benchmarkOpTrustedSeedGen(b, 20, 2, 4, 16) } // 0.8367157s
+func BenchmarkTrustedSeedGenN20n3(b *testing.B) { benchmarkOpTrustedSeedGen(b, 20, 3, 4, 16) } // 2.407096s
+
+// Benchmarking Eval
+func BenchmarkEvalN9(b *testing.B)  { benchmarkOpEval(b, 9, 2, 4, 16) }  // 34.27199s (0.0668s per sig)
+func BenchmarkEvalN10(b *testing.B) { benchmarkOpEval(b, 10, 2, 4, 16) } // 104.4729s (0.1020s per sig)
+func BenchmarkEvalN11(b *testing.B) { benchmarkOpEval(b, 11, 2, 4, 16) } // 170.8978s (0.0834s per sig)
+func BenchmarkEvalN12(b *testing.B) { benchmarkOpEval(b, 12, 2, 4, 16) } // 336.8978s (0.0822s per sig)
+
+func benchmarkOpTrustedSeedGen(b *testing.B, N, n, c, t int) {
+	pcg, err := NewPCG(128, N, n, c, t)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = pcg.TrustedSeedGen()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+
+}
+
+func benchmarkOpEval(b *testing.B, N, n, c, t int) {
+	pcg, err := NewPCG(128, N, n, c, t)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	seeds, err := pcg.TrustedSeedGen()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	randPolys, err := pcg.PickRandomPolynomials()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	ring, err := pcg.GetRing(true)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = pcg.Eval(seeds[0], randPolys, ring.Div)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
