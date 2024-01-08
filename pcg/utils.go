@@ -109,9 +109,9 @@ func scalarMulFr(scalar *bls12381.Fr, vector []*bls12381.Fr) []*bls12381.Fr {
 	result := make([]*bls12381.Fr, len(vector))
 	for i := 0; i < len(vector); i++ {
 		result[i] = bls12381.NewFr()
-		result[i].Mul(vector[i], scalar)
+		result[i].Mul(scalar, vector[i])
 	}
-	return vector
+	return result
 }
 
 // init3DSliceBigInt initializes a 3D slice of *big.Int
