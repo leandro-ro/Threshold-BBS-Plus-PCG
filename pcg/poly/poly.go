@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
+	"log"
 	"math"
 	"math/big"
 	"math/rand"
@@ -288,9 +289,29 @@ func (p *Polynomial) MulByConstant(constant *bls12381.Fr) {
 }
 
 // Mul multiplies two polynomials and stores the result in the polynomial the function is being called on.
+// The function will choose the most efficient method of multiplication depending on the structure of the polynomials.
 func (p *Polynomial) Mul(q *Polynomial) error {
-	if len(p.Coefficients) > 1024 && len(q.Coefficients) > 1024 { // ensures t-sparse polynomials are not multiplied using FFT
-		fmt.Printf("FTT Mult: p.Coefficients: %v, q.Coefficients: %v\n", len(p.Coefficients), len(q.Coefficients))
+	maxComplexity := len(p.Coefficients) * len(q.Coefficients)
+	if maxComplexity < 512 {
+		return p.mulNaive(q)
+	}
+
+	// Calculate the degrees of the polynomials
+	degP, err := p.Degree()
+	if err != nil {
+		return err
+	}
+	degQ, err := q.Degree()
+	if err != nil {
+		return err
+	}
+
+	// Calculate the size for FFT, which is the next power of 2 greater than degP + degQ
+	nFFT := nextPowerOf2(degP + degQ + 1)
+
+	// Compare the product of non-zero coefficients with nFFT * log2(nFFT)
+	if maxComplexity > nFFT*log2(nFFT) {
+		log.Println("Multiplying using FFT")
 		return p.mulFFT(q)
 	} else {
 		return p.mulNaive(q)
@@ -320,16 +341,6 @@ func Sub(p, q *Polynomial) *Polynomial {
 	copyQ := q.DeepCopy()
 	res.Sub(copyQ)
 	return res
-}
-
-// Sparseness returns the sparseness of the polynomial, hence it returns the number of non-zero Coefficients.
-// E.g. x^2 + 2 = 1*x^2 + 0*x^1 + 2*x^0 -> 2 non-zero Coefficients, hence 2-sparse.
-func (p *Polynomial) Sparseness() int {
-	degree, err := p.Degree()
-	if err != nil {
-		return 0
-	}
-	return degree + 1 - len(p.Coefficients) // +1 as we need to also account for the constant term, e.g. x^2 + 2 -> (degree: 2) + 1 - (coeff len: 1) = 2 sparse
 }
 
 // GetCoefficient returns the coefficient of the given exponent.
@@ -594,4 +605,28 @@ func maxKey(m map[int]*bls12381.Fr) (int, bool) {
 	}
 
 	return maxEx, found
+}
+
+// Helper function to calculate the next power of 2
+func nextPowerOf2(n int) int {
+	if n <= 0 {
+		return 1
+	}
+	n--
+	n |= n >> 1
+	n |= n >> 2
+	n |= n >> 4
+	n |= n >> 8
+	n |= n >> 16
+	return n + 1
+}
+
+// Helper function to calculate log base 2 of an integer
+func log2(n int) int {
+	log := 0
+	for n > 1 {
+		n /= 2
+		log++
+	}
+	return log
 }
