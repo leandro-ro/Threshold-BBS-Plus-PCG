@@ -289,7 +289,8 @@ func (p *Polynomial) MulByConstant(constant *bls12381.Fr) {
 
 // Mul multiplies two polynomials and stores the result in the polynomial the function is being called on.
 func (p *Polynomial) Mul(q *Polynomial) error {
-	if len(p.Coefficients) > 1024 && len(q.Coefficients) > 1024 {
+	if len(p.Coefficients) > 1024 && len(q.Coefficients) > 1024 { // ensures t-sparse polynomials are not multiplied using FFT
+		fmt.Printf("FTT Mult: p.Coefficients: %v, q.Coefficients: %v\n", len(p.Coefficients), len(q.Coefficients))
 		return p.mulFFT(q)
 	} else {
 		return p.mulNaive(q)

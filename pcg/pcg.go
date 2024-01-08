@@ -142,7 +142,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 
 	// 2. Process VOLE (u) with seed / delta0 = ask
 	fmt.Println("Processing VOLE")
-	utilde, err := p.evalVOLEwithSeed(u, seed.U, seed.index, seed.ski, div)
+	utilde, err := p.evalVOLEwithSeed(u, seed.ski, seed.U, seed.index, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 2: failed to evaluate VOLE (utilde): %w", err)
 	}
@@ -160,7 +160,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 	}
 
 	// 5. Calculate final shares
-	fmt.Println("Calculating final shares")
+	fmt.Println("Calculating final share polynomials")
 	ai, err := p.evalFinalShare(u, rand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share ai: %w", err)
@@ -183,7 +183,7 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 		return nil, err
 	}
 
-	fmt.Println("Calculating final shares 2D")
+	fmt.Println("Calculating final share polynomials 2D")
 	alphai, err := p.evalFinalShare2D(w, oprand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share alphai: %w", err)
@@ -225,7 +225,7 @@ type Ring struct {
 	Roots []*bls12381.Fr
 }
 
-// Define the ring we are calculating in.
+// Define the ring we are working with.
 func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 	// Define the Ring we work in
 	smallFactorThreshold := big.NewInt(1000)
@@ -304,7 +304,7 @@ func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (*poly.Polynomial, error) {
 	ai := poly.NewEmpty()
 	for r := 0; r < p.c; r++ {
-		prod, err := poly.Mul(rand[r], u[r])
+		prod, err := poly.Mul(rand[r], u[r]) // TODO: Safe one mult here by using the fact that rand[c-1] is always 1
 		if err != nil {
 			return nil, err
 		}
@@ -313,10 +313,8 @@ func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (
 		if err != nil {
 			return nil, err
 		}
-
 		ai.Add(remainder)
 	}
-
 	return ai, nil
 }
 
@@ -332,14 +330,17 @@ func (p *PCG) evalFinalShare2D(w [][]*poly.Polynomial, oprand []*poly.Polynomial
 				if err != nil {
 					return nil, err
 				}
+
 				prod, err := poly.Mul(oprandMod, w[j][k])
 				if err != nil {
 					return nil, err
 				}
+
 				remainder, err := prod.Mod(div)
 				if err != nil {
 					return nil, err
 				}
+
 				alphai.Add(remainder)
 			} else {
 				remainder, err := w[j][k].Mod(div)
@@ -354,12 +355,11 @@ func (p *PCG) evalFinalShare2D(w [][]*poly.Polynomial, oprand []*poly.Polynomial
 }
 
 // evalVOLEwithSeed evaluates the VOLE correlation with the given seed.
-func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedDSPFKeys [][][]*DSPFKeyPair, seedIndex int, seedSk *bls12381.Fr, div *poly.Polynomial) ([]*poly.Polynomial, error) {
+func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedSk *bls12381.Fr, seedDSPFKeys [][][]*DSPFKeyPair, seedIndex int, div *poly.Polynomial) ([]*poly.Polynomial, error) {
 	utilde := make([]*poly.Polynomial, p.c)
 	for r := 0; r < p.c; r++ {
 		ur := u[r].DeepCopy()    // We need unmodified u[r] later on, so we copy it
 		ur.MulByConstant(seedSk) // u[r] * sk[i]
-		ur, _ = ur.Mod(div)
 
 		for i := 0; i < p.n; i++ {
 			if i == seedIndex {
@@ -394,10 +394,6 @@ func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedDSPFKeys [][][]*DSPFKey
 					}
 				}
 			}
-		}
-		ur, err := ur.Mod(div)
-		if err != nil {
-			return nil, err
 		}
 		utilde[r] = ur
 	}
@@ -452,10 +448,6 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 					}
 				}
 			}
-			wrs, err = wrs.Mod(div)
-			if err != nil {
-				return nil, err
-			}
 			w[r][s] = wrs
 		}
 	}
@@ -491,10 +483,10 @@ func (p *PCG) embedOLECorrelations(omega, o [][][]*big.Int, beta, b [][][]*bls12
 				for r := 0; r < p.c; r++ {
 					for s := 0; s < p.c; s++ {
 						specialPoints := outerSumBigInt(omega[i][r], o[j][s])
-						// TODO: Find a fix for this! We need to ensure that the special points are unique.
-						if hasDuplicates(specialPoints) {
-							return nil, fmt.Errorf("special points contain duplicates")
-						}
+						// For evaluating the performance, we allow duplicates for now
+						// if hasDuplicates(specialPoints) {
+						//	return nil, fmt.Errorf("special points contain duplicates")
+						// }
 						nonZeroElements := outerProductFr(beta[i][r], b[j][s])
 						key1, key2, err := p.dspf2N.Gen(specialPoints, frSliceToBigIntSlice(nonZeroElements))
 						if err != nil {
