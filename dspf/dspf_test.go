@@ -8,7 +8,6 @@ import (
 	"math/big"
 	treedpf "pcg-master-thesis/dpf/2015_boyle_tree_based"
 	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
-	"pcg-master-thesis/pcg/poly"
 	"testing"
 )
 
@@ -355,57 +354,46 @@ func TestDSPFFullEvalFastOpTreeDPFSum(t *testing.T) {
 		t.Errorf("Eval returned an unexpected error: %v", err)
 	}
 
-	ys1summed := make([]*bls12381.Fr, len(ys1))
-	for i := 0; i < len(ys1); i++ {
-		ys1summed[i] = bls12381.NewFr()
-		for j := 0; j < len(ys1[0]); j++ {
-			val := bls12381.NewFr().FromBytes(ys1[i][j].Bytes())
+	ys1summed := make([]*bls12381.Fr, len(ys1[0]))
+	for i := 0; i < len(ys1[0]); i++ {
+		for j := 0; j < len(ys1); j++ {
+			if ys1summed[i] == nil {
+				ys1summed[i] = bls12381.NewFr()
+			}
+			val := bls12381.NewFr().FromBytes(ys1[j][i].Bytes())
 			ys1summed[i].Add(ys1summed[i], val)
 		}
 	}
 
-	ys2summed := make([]*bls12381.Fr, len(ys2))
-	for i := 0; i < len(ys2); i++ {
-		ys2summed[i] = bls12381.NewFr()
-		for j := 0; j < len(ys2[0]); j++ {
-			val := bls12381.NewFr().FromBytes(ys2[i][j].Bytes())
+	ys2summed := make([]*bls12381.Fr, len(ys2[0]))
+	for i := 0; i < len(ys2[0]); i++ {
+		for j := 0; j < len(ys2); j++ {
+			if ys2summed[i] == nil {
+				ys2summed[i] = bls12381.NewFr()
+			}
+			val := bls12381.NewFr().FromBytes(ys2[j][i].Bytes())
 			ys2summed[i].Add(ys2summed[i], val)
 		}
 	}
 
-	result := make([]*bls12381.Fr, tCount)
-	for i := 0; i < tCount; i++ {
+	result := make([]*bls12381.Fr, len(ys1summed))
+	for i := 0; i < len(result); i++ {
 		result[i] = bls12381.NewFr()
 		result[i].Add(ys1summed[i], ys2summed[i])
 	}
 
-	for i := 0; i < tCount; i++ {
-		expected := bls12381.NewFr().FromBytes(nonZeroElements[i].Bytes())
-		assert.Equal(t, 0, result[i].Cmp(expected))
-	}
-
-	div := poly.NewEmpty()
-	one := bls12381.NewFr().One()
-	div.Coefficients[0] = bls12381.NewFr()
-	div.Coefficients[0].Neg(one)
-	div.Coefficients[int(maxInputX.Int64())] = bls12381.NewFr().One()
-
-	ys1Poly := poly.NewFromFr(ys1summed)
-	remainder1, _ := ys1Poly.Mod(div)
-	ys2Poly := poly.NewFromFr(ys2summed)
-	remainder2, _ := ys2Poly.Mod(div)
-
-	remResult := make([]*bls12381.Fr, tCount)
-	for i := 0; i < tCount; i++ {
-		remResult[i] = bls12381.NewFr()
-		coeff1, _ := remainder1.GetCoefficient(i)
-		coeff2, _ := remainder2.GetCoefficient(i)
-		remResult[i].Add(coeff1, coeff2)
-	}
-
-	for i := 0; i < tCount; i++ {
-		expected := bls12381.NewFr().FromBytes(nonZeroElements[i].Bytes())
-		assert.Equal(t, 0, remResult[i].Cmp(expected))
+	for i := 0; i < len(result); i++ {
+		found := false
+		for pos, specialPoint := range specialPoints {
+			if big.NewInt(int64(i)).Cmp(specialPoint) == 0 {
+				val := result[i].ToBig()
+				assert.Equal(t, 0, val.Cmp(nonZeroElements[pos]))
+				found = true
+			}
+		}
+		if !found {
+			assert.Equal(t, 0, result[i].ToBig().Cmp(big.NewInt(0)))
+		}
 	}
 }
 

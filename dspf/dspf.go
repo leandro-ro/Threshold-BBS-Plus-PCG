@@ -2,7 +2,6 @@ package dspf
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 	"pcg-master-thesis/dpf"
 )
@@ -35,20 +34,20 @@ func (d *DSPF) Gen(specialPoints []*big.Int, nonZeroElements []*big.Int) (Key, K
 		return Key{}, Key{}, errors.New("the number of special points and non-zero elements must match")
 	}
 
-	// Check for duplicates in specialPoints
-	seen := make(map[string]struct{})
-	for i, sp := range specialPoints {
-		if sp == nil || nonZeroElements[i] == nil {
-			return Key{}, Key{}, errors.New("special points and non-zero elements cannot be nil")
-		}
+	// Check for duplicates in specialPoints // TODO: For now, we allow duplicates although this is not secure
+	// seen := make(map[string]struct{})
+	// for i, sp := range specialPoints {
+	//	if sp == nil || nonZeroElements[i] == nil {
+	//		return Key{}, Key{}, errors.New("special points and non-zero elements cannot be nil")
+	//	}
 
-		// Use string representation of big.Int for map key
-		spStr := sp.Text(10) // Base 10 for decimal representation
-		if _, exists := seen[spStr]; exists {
-			return Key{}, Key{}, fmt.Errorf("duplicate special point: %s", spStr)
-		}
-		seen[spStr] = struct{}{}
-	}
+	// Use string representation of big.Int for map key
+	// spStr := sp.Text(10) // Base 10 for decimal representation
+	// if _, exists := seen[spStr]; exists {
+	// 	return Key{}, Key{}, fmt.Errorf("duplicate special point: %s", spStr)
+	// }
+	// seen[spStr] = struct{}{}
+	//}
 
 	// Generate DPF keys for each (specialPoint, nonZeroElement) pair
 	var keyAlice Key
