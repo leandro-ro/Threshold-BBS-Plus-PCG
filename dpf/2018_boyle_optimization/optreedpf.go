@@ -449,7 +449,7 @@ func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord
 		case 22:
 			threadDepthInterval = 6
 		default:
-			threadDepthInterval = 10 // This implies that no threads are spawned for all domains < 10 bits (as this is inefficient)
+			threadDepthInterval = 5 // This implies that no threads are spawned for all domains < 5 bits (as this is inefficient)
 		}
 
 		var left, right []*big.Int
