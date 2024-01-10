@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
-	"log"
 	"math"
 	"math/big"
 	"math/rand"
@@ -292,7 +291,7 @@ func (p *Polynomial) MulByConstant(constant *bls12381.Fr) {
 // The function will choose the most efficient method of multiplication depending on the structure of the polynomials.
 func (p *Polynomial) Mul(q *Polynomial) error {
 	maxComplexity := len(p.Coefficients) * len(q.Coefficients)
-	if maxComplexity < 512 {
+	if maxComplexity < 1024 {
 		return p.mulNaive(q)
 	}
 
@@ -311,7 +310,6 @@ func (p *Polynomial) Mul(q *Polynomial) error {
 
 	// Compare the product of non-zero coefficients with nFFT * log2(nFFT)
 	if maxComplexity > nFFT*log2(nFFT) {
-		log.Println("Multiplying using FFT")
 		return p.mulFFT(q)
 	} else {
 		return p.mulNaive(q)

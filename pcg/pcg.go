@@ -10,7 +10,10 @@ import (
 	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
 	"pcg-master-thesis/dspf"
 	"pcg-master-thesis/pcg/poly"
+	"runtime"
 	"sort"
+	"sync"
+	"time"
 )
 
 type PCG struct {
@@ -118,6 +121,7 @@ func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 
 // Eval evaluates the PCG for the given seed based on a c random polynomials.
 func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*BBSPlusTupleGenerator, error) {
+	startTimeTotal := time.Now()
 	if len(rand) != p.c {
 		return nil, fmt.Errorf("rand must hold c=%d polynomials but contains %d", p.c, len(rand))
 	}
@@ -126,9 +130,10 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 		return nil, fmt.Errorf("rand must be a slice of polynomials with polynomial of the the last index rand[c-1] equal to 1")
 	}
 
-	log.Println("Evaluating PCG for ", seed.index)
+	//log.Println("Evaluating PCG for ", seed.index)
 	// 1. Generate polynomials
-	log.Println("Generating polynomials")
+	//log.Println("Generating polynomials")
+	startGenPolys := time.Now()
 	u, err := p.constructPolys(seed.coefficients.aBeta, seed.exponents.aOmega)
 	if err != nil {
 		return nil, fmt.Errorf("step 1: failed to generate polynomials for u from aBeta and aOmega: %w", err)
@@ -141,28 +146,45 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 	if err != nil {
 		return nil, fmt.Errorf("step 1: failed to generate polynomials for k from sEpsilon and sPhi: %w", err)
 	}
+	endGenPolys := time.Now()
+	duration := endGenPolys.Sub(startGenPolys)
+	log.Println("Generated polynomials (in s): ", duration.Seconds())
 
 	// 2. Process VOLE (u) with seed / delta0 = ask
-	log.Println("Processing VOLE (delta0 = ask)")
+	//log.Println("Processing VOLE (delta0 = ask)")
+	startVole := time.Now()
 	utilde, err := p.evalVOLEwithSeed(u, seed.ski, seed.U, seed.index, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 2: failed to evaluate VOLE (utilde): %w", err)
 	}
+	endVole := time.Now()
+	duration = endVole.Sub(startVole)
+	log.Println("Processed VOLE (in s): ", duration.Seconds())
+
 	// 3. Process first OLE correlation (u, k) with seed / alpha = as
-	log.Println("Processing #1 OLE (alpha = as)")
+	//log.Println("Processing #1 OLE (alpha = as)")
+	startOle := time.Now()
 	w, err := p.evalOLEwithSeed(u, k, seed.C, seed.index, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 3: failed to evaluate OLE (w): %w", err)
 	}
+	endOle := time.Now()
+	duration = endOle.Sub(startOle)
+	log.Println("Processed #1 OLE (in s): ", duration.Seconds())
+
 	// 4. Process second OLE correlation (u, v) with seed /  delta1 = ae
-	log.Println("Processing #2 OLE (delta1 = ae)")
+	//log.Println("Processing #2 OLE (delta1 = ae)")
+	startOle2 := time.Now()
 	m, err := p.evalOLEwithSeed(u, v, seed.V, seed.index, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 4: failed to evaluate OLE (m): %w", err)
 	}
+	endOle2 := time.Now()
+	duration = endOle2.Sub(startOle2)
+	log.Println("Processed #2 OLE (in s): ", duration.Seconds())
 
 	// 5. Calculate final shares
-	log.Println("Calculating final share polynomials")
+	//log.Println("Calculating final share polynomials")
 	ai, err := p.evalFinalShare(u, rand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share ai: %w", err)
@@ -175,26 +197,43 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share ki: %w", err)
 	}
+
+	startFinalShareVOLE := time.Now()
 	delta0i, err := p.evalFinalShare(utilde, rand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share delta0i: %w", err)
 	}
+	endFinalShareVOLE := time.Now()
+	duration = endFinalShareVOLE.Sub(startFinalShareVOLE)
+	log.Println("Calculated final share polynomials for VOLE (in s): ", duration.Seconds())
 
 	oprand, err := outerProductPoly(rand, rand)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Println("Calculating final share polynomials 2D")
+	//log.Println("Calculating final share polynomials 2D")
+	startFinalShareOLE := time.Now()
 	alphai, err := p.evalFinalShare2D(w, oprand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share alphai: %w", err)
 	}
+	endFinalShareOLE := time.Now()
+	duration = endFinalShareOLE.Sub(startFinalShareOLE)
+	log.Println("Calculated final share polynomials for #1 OLE (in s): ", duration.Seconds())
+
+	startFinalShareOLE2 := time.Now()
 	delta1i, err := p.evalFinalShare2D(m, oprand, div)
 	if err != nil {
 		return nil, fmt.Errorf("step 5: failed to evaluate final share delta1i: %w", err)
 	}
+	endFinalShareOLE2 := time.Now()
+	duration = endFinalShareOLE2.Sub(startFinalShareOLE2)
+	log.Println("Calculated final share polynomials for #2 OLE (in s): ", duration.Seconds())
 
+	endTimeTotal := time.Now()
+	duration = endTimeTotal.Sub(startTimeTotal)
+	log.Println("Total time for EVAL (in s): ", duration.Seconds())
 	return NewBBSPlusTupleGenerator(seed.ski, ai, ei, si, alphai, delta0i, delta1i), nil
 }
 
@@ -304,19 +343,51 @@ func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 // evalFinalShare evaluates the final share of the PCG for the given polynomial.
 // This function effectively calculates the inner product between the given polynomial and the random polynomials in div.
 func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (*poly.Polynomial, error) {
-	ai := poly.NewEmpty()
-	for r := 0; r < p.c; r++ {
-		prod, err := poly.Mul(rand[r], u[r]) // TODO: Safe one mult here by using the fact that rand[c-1] is always 1
-		if err != nil {
-			return nil, err
-		}
+	numCores := runtime.NumCPU()
+	tasks := make(chan evalFinalShareTask, numCores)
+	results := make(chan evalFinalShareResult, p.c)
 
-		remainder, err := prod.Mod(div)
-		if err != nil {
-			return nil, err
+	var wg sync.WaitGroup
+	worker := func() {
+		defer wg.Done()
+		for task := range tasks {
+			prod, err := poly.Mul(task.oprand, task.wPoly) // rand[r] and u[r] are swapped in this case
+			if err != nil {
+				results <- evalFinalShareResult{nil, err}
+				return
+			}
+
+			remainder, err := prod.Mod(div)
+			results <- evalFinalShareResult{remainder, err}
 		}
-		ai.Add(remainder)
 	}
+
+	for i := 0; i < numCores; i++ {
+		wg.Add(1)
+		go worker()
+	}
+
+	go func() {
+		for r := 0; r < p.c; r++ {
+			tasks <- evalFinalShareTask{0, 0, rand[r], u[r], div, false} // Indices and isLastIndex are not used here
+		}
+		close(tasks)
+	}()
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	ai := poly.NewEmpty()
+	for i := 0; i < p.c; i++ {
+		result := <-results
+		if result.err != nil {
+			return nil, result.err
+		}
+		ai.Add(result.poly)
+	}
+
 	return ai, nil
 }
 
@@ -324,32 +395,32 @@ func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (
 // This function effectively calculates the inner product between the given polynomial and the random polynomials in div.
 func (p *PCG) evalFinalShare2D(w [][]*poly.Polynomial, oprand []*poly.Polynomial, div *poly.Polynomial) (*poly.Polynomial, error) {
 	numCores := runtime.NumCPU()
-	tasks := make(chan eval2DTask, numCores)
-	results := make(chan eval2DResult, numCores)
+	tasks := make(chan evalFinalShareTask, numCores)
+	results := make(chan evalFinalShareResult, numCores)
 
 	var wg sync.WaitGroup
 	worker := func() {
 		defer wg.Done()
 		for task := range tasks {
-			var result eval2DResult
+			var result evalFinalShareResult
 			if task.isLastIndex {
 				remainder, err := task.wPoly.Mod(task.div)
-				result = eval2DResult{remainder, err}
+				result = evalFinalShareResult{remainder, err}
 			} else {
 				oprandMod, err := task.oprand.Mod(task.div)
 				if err != nil {
-					results <- eval2DResult{nil, err}
+					results <- evalFinalShareResult{nil, err}
 					return
 				}
 
 				prod, err := poly.Mul(oprandMod, task.wPoly)
 				if err != nil {
-					results <- eval2DResult{nil, err}
+					results <- evalFinalShareResult{nil, err}
 					return
 				}
 
 				remainder, err := prod.Mod(task.div)
-				result = eval2DResult{remainder, err}
+				result = evalFinalShareResult{remainder, err}
 			}
 			results <- result
 		}
@@ -365,7 +436,7 @@ func (p *PCG) evalFinalShare2D(w [][]*poly.Polynomial, oprand []*poly.Polynomial
 			for k := 0; k < p.c; k++ {
 				currentIndex := j*p.c + k
 				isLastIndex := currentIndex == p.c*p.c-1
-				task := eval2DTask{j, k, oprand[currentIndex], w[j][k], div, isLastIndex}
+				task := evalFinalShareTask{j, k, oprand[currentIndex], w[j][k], div, isLastIndex}
 				tasks <- task
 			}
 		}
@@ -442,7 +513,7 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 	for r := 0; r < p.c; r++ {
 		w[r] = make([]*poly.Polynomial, p.c)
 		for s := 0; s < p.c; s++ {
-			wrs, err := poly.Mul(u[r], v[s])
+			wrs, err := poly.Mul(u[r], v[s]) // u an r are t-sparse -> t*t complexity
 			if err != nil {
 				return nil, err
 			}
@@ -460,12 +531,7 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 							}
 							eval0Aggregated := aggregateDSPFoutput(eval0) // TODO: Workaround... make this more elegant
 							eval0Poly := poly.NewFromFr(eval0Aggregated)
-							wrs.Add(eval0Poly)
-
-							wrs, err = wrs.Mod(div)
-							if err != nil {
-								return nil, err
-							}
+							wrs.Add(eval0Poly) // N
 
 							eval1, err := p.dspf2N.FullEvalFast(seedDSPFKeys[j][i][r][s].Key1)
 							if err != nil {
@@ -473,15 +539,14 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 							}
 							eval1Aggregated := aggregateDSPFoutput(eval1) // TODO: Workaround... make this more elegant
 							eval1Poly := poly.NewFromFr(eval1Aggregated)
-							wrs.Add(eval1Poly)
-
-							wrs, err = wrs.Mod(div)
-							if err != nil {
-								return nil, err
-							}
+							wrs.Add(eval1Poly) // N
 						}
 					}
 				}
+			}
+			wrs, err = wrs.Mod(div)
+			if err != nil {
+				return nil, err
 			}
 			w[r][s] = wrs
 		}

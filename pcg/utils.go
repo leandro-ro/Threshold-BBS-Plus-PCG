@@ -308,8 +308,8 @@ func multiplicativeGroupOrderFactorizationBLS12381() []primeFactor {
 
 // The following structs support parallel processing
 
-// eval2DTask represents a task for the eval2D function.
-type eval2DTask struct {
+// evalFinalShareTask represents a task for the eval2D function.
+type evalFinalShareTask struct {
 	j, k        int
 	oprand      *poly.Polynomial
 	wPoly       *poly.Polynomial
@@ -317,8 +317,8 @@ type eval2DTask struct {
 	isLastIndex bool
 }
 
-// eval2DResult represents the result of the eval2D function.
-type eval2DResult struct {
+// evalFinalShareResult represents the result of the eval2D function.
+type evalFinalShareResult struct {
 	poly *poly.Polynomial
 	err  error
 }
