@@ -14,8 +14,10 @@ import (
 	"encoding/gob"
 	"errors"
 	bls12381 "github.com/kilic/bls12-381"
+	"math"
 	"math/big"
 	"pcg-master-thesis/dpf"
+	"runtime"
 )
 
 // Key is a concrete implementation of the Key interface for this Tree based DPF.
@@ -70,11 +72,12 @@ type CorrectionWord struct {
 }
 
 type OpTreeDPF struct {
-	Lambda          int      // Lambda is the security parameter and interpreted in number of bits.
-	prgOutputLength int      // prgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
-	DomainBitLength int      // DomainBitLength is the bit length of the DPFs input domain.
-	AlphaMax        *big.Int // AlphaMax is the maximum value of the special point. It is equal to 2^DomainBitLength - 1.
-	BetaMax         *big.Int // BetaMax is the maximum value of the non-zero element.
+	Lambda             int      // Lambda is the security parameter and interpreted in number of bits.
+	prgOutputLength    int      // prgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
+	DomainBitLength    int      // DomainBitLength is the bit length of the DPFs input domain.
+	AlphaMax           *big.Int // AlphaMax is the maximum value of the special point. It is equal to 2^DomainBitLength - 1.
+	BetaMax            *big.Int // BetaMax is the maximum value of the non-zero element.
+	evalDepthThreshold int      // evalDepthThreshold is the depth threshold for parallelization of the FullEvalFast method.
 }
 
 // InitFactory initializes a new OpTreeDPF structure.
@@ -92,16 +95,18 @@ func InitFactory(lambda, inputDomain int) (*OpTreeDPF, error) {
 	alphaMax := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(inputDomain)), nil)
 	alphaMax.Sub(alphaMax, big.NewInt(1))
 
-	// TODO: This is the modulus of the scalar field (q), as used by the Fr implementation. Check if this is correct.
 	betaMax, _ := new(big.Int).SetString("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001", 16)
 	betaMax.Sub(betaMax, big.NewInt(1))
 
+	evalDepthThreshold := int(math.Floor(math.Log2(float64(runtime.NumCPU()))))
+
 	return &OpTreeDPF{
-		Lambda:          lambda,
-		prgOutputLength: prgOutputLength,
-		DomainBitLength: inputDomain,
-		AlphaMax:        alphaMax,
-		BetaMax:         betaMax,
+		Lambda:             lambda,
+		prgOutputLength:    prgOutputLength,
+		DomainBitLength:    inputDomain,
+		AlphaMax:           alphaMax,
+		BetaMax:            betaMax,
+		evalDepthThreshold: evalDepthThreshold,
 	}, nil
 }
 
@@ -353,6 +358,10 @@ func (d *OpTreeDPF) FullEvalFast(key dpf.Key) ([]*big.Int, error) {
 	initT := tkey.ID != 0 // Interpret ID as boolean
 	initS := tkey.S
 
+	// Idea of parallelization: Compute subtrees in parallel, spawn a new thread for each subtree.
+	// We can compute numAvailableCores subtrees in parallel. Hence, we start the subtrees at depth log2(numCores).
+	// We floor that the threads are all created at the same depth, so we round down to the next integer.
+	// E.g. 10 cores available -> Start 8 threads for each respective node at depth 3 (2^3 = 8)
 	res, err := d.traverseParallel(initS, initT, tkey.CW, d.DomainBitLength, tkey.ID)
 
 	if err != nil {
@@ -437,21 +446,6 @@ func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord
 			return nil, err
 		}
 
-		// Define the depth interval for new threads (as otherwise too many threads are created)
-		// The switch case is based on the results from the empirical evaluation.
-		// We focus on the 20 and 21 bit domain, as these are the most relevant ones for our PCG.
-		// The values may depend on the processor used. The values were obtained on an Apple M1 Max with 10 cores.
-		// The more cores the processor has, the lower the interval can be chosen as more threads can be efficiently handled simultaneously.
-		var threadDepthInterval int
-		switch d.DomainBitLength {
-		case 20, 21:
-			threadDepthInterval = 7
-		case 22:
-			threadDepthInterval = 6
-		default:
-			threadDepthInterval = 5 // This implies that no threads are spawned for all domains < 5 bits (as this is inefficient)
-		}
-
 		var left, right []*big.Int
 
 		// Function to perform traversal
@@ -460,7 +454,7 @@ func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord
 		}
 
 		// Check if a new thread should be spawned
-		if depth%threadDepthInterval == 0 {
+		if depth == d.evalDepthThreshold { // should spawn 8 threads for 10 cores
 			leftChan := make(chan []*big.Int)
 			rightChan := make(chan []*big.Int)
 			errChan := make(chan error)
