@@ -323,36 +323,71 @@ func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (
 // evalFinalShare2D evaluates the final share of the PCG for the given polynomial.
 // This function effectively calculates the inner product between the given polynomial and the random polynomials in div.
 func (p *PCG) evalFinalShare2D(w [][]*poly.Polynomial, oprand []*poly.Polynomial, div *poly.Polynomial) (*poly.Polynomial, error) {
-	alphai := poly.NewEmpty()
-	for j := 0; j < p.c; j++ {
-		for k := 0; k < p.c; k++ {
-			currentIndex := j*p.c + k
-			if currentIndex != p.c*p.c-1 { // rand[c-1] is always 1, hence instead of multiplying we can just add
-				oprandMod, err := oprand[currentIndex].Mod(div)
-				if err != nil {
-					return nil, err
-				}
+	numCores := runtime.NumCPU()
+	tasks := make(chan eval2DTask, numCores)
+	results := make(chan eval2DResult, numCores)
 
-				prod, err := poly.Mul(oprandMod, w[j][k])
-				if err != nil {
-					return nil, err
-				}
-
-				remainder, err := prod.Mod(div)
-				if err != nil {
-					return nil, err
-				}
-
-				alphai.Add(remainder)
+	var wg sync.WaitGroup
+	worker := func() {
+		defer wg.Done()
+		for task := range tasks {
+			var result eval2DResult
+			if task.isLastIndex {
+				remainder, err := task.wPoly.Mod(task.div)
+				result = eval2DResult{remainder, err}
 			} else {
-				remainder, err := w[j][k].Mod(div)
+				oprandMod, err := task.oprand.Mod(task.div)
 				if err != nil {
-					return nil, err
+					results <- eval2DResult{nil, err}
+					return
 				}
-				alphai.Add(remainder)
+
+				prod, err := poly.Mul(oprandMod, task.wPoly)
+				if err != nil {
+					results <- eval2DResult{nil, err}
+					return
+				}
+
+				remainder, err := prod.Mod(task.div)
+				result = eval2DResult{remainder, err}
 			}
+			results <- result
 		}
 	}
+
+	for i := 0; i < numCores; i++ {
+		wg.Add(1)
+		go worker()
+	}
+
+	go func() {
+		for j := 0; j < p.c; j++ {
+			for k := 0; k < p.c; k++ {
+				currentIndex := j*p.c + k
+				isLastIndex := currentIndex == p.c*p.c-1
+				task := eval2DTask{j, k, oprand[currentIndex], w[j][k], div, isLastIndex}
+				tasks <- task
+			}
+		}
+		close(tasks)
+	}()
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	alphai := poly.NewEmpty()
+	for range w {
+		for range w[0] {
+			result := <-results
+			if result.err != nil {
+				return nil, result.err
+			}
+			alphai.Add(result.poly)
+		}
+	}
+
 	return alphai, nil
 }
 

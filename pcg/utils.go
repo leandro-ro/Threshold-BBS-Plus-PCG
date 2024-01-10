@@ -7,6 +7,8 @@ import (
 	"math/big"
 	"math/rand"
 	"pcg-master-thesis/pcg/poly"
+	"runtime"
+	"sync"
 )
 
 // getShamirSharedRandomElement generates a t-out-of-n shamir secret sharing of a random element.
@@ -88,7 +90,7 @@ func outerSumBigInt(a, b []*big.Int) []*big.Int {
 	return result
 }
 
-// outerProductFr calculates the outer product of two slices of *bls12381.Fr elements.
+// outerProductFr calculates the outer product of two slices of *bls12381.Fr.
 // the resulting matrix is returned in vector form.
 func outerProductFr(a, b []*bls12381.Fr) []*bls12381.Fr {
 	result := make([]*bls12381.Fr, len(a)*len(b))
@@ -104,7 +106,68 @@ func outerProductFr(a, b []*bls12381.Fr) []*bls12381.Fr {
 	return result
 }
 
-// scalarMulFr multiplies a scalar with a vector of *bls12381.Fr elements.
+// outerProductPoly calculates the outer product of two slices of *poly.Polynomial.
+// The function is implemented using a worker pool to handle large polynomials.
+func outerProductPoly(a, b []*poly.Polynomial) ([]*poly.Polynomial, error) {
+	numCores := runtime.NumCPU()
+	tasks := make(chan polyTask, numCores)
+	results := make(chan polyResult, len(a)*len(b))
+	errs := make(chan error, 1)
+
+	// Worker function for polynomial multiplication
+	var wg sync.WaitGroup
+	worker := func() {
+		defer wg.Done()
+		for task := range tasks {
+			prod, err := poly.Mul(task.aPoly, task.bPoly)
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- polyResult{task.aIndex, task.bIndex, prod}
+		}
+	}
+
+	// Start workers
+	for i := 0; i < numCores; i++ {
+		wg.Add(1)
+		go worker()
+	}
+
+	// Distribute tasks
+	go func() {
+		for i, aPoly := range a {
+			for j, bPoly := range b {
+				tasks <- polyTask{i, j, aPoly, bPoly}
+			}
+		}
+		close(tasks)
+	}()
+
+	// Wait for workers to complete and close results channel
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results
+	res := make([]*poly.Polynomial, len(a)*len(b))
+	for result := range results {
+		i, j := result.aIndex, result.bIndex
+		res[i*len(b)+j] = result.product
+	}
+
+	// Check for errors
+	select {
+	case err := <-errs:
+		return nil, err
+	default:
+	}
+
+	return res, nil
+}
+
+// scalarMulFr multiplies a scalar with a vector of *bls12381.Fr.
 func scalarMulFr(scalar *bls12381.Fr, vector []*bls12381.Fr) []*bls12381.Fr {
 	result := make([]*bls12381.Fr, len(vector))
 	for i := 0; i < len(vector); i++ {
@@ -200,20 +263,6 @@ func hasDuplicates(slice []*big.Int) bool {
 	return false
 }
 
-func outerProductPoly(a, b []*poly.Polynomial) ([]*poly.Polynomial, error) {
-	res := make([]*poly.Polynomial, len(a)*len(b))
-	for i, aPoly := range a {
-		for j, bPoly := range b {
-			prod, err := poly.Mul(aPoly, bPoly)
-			if err != nil {
-				return nil, err
-			}
-			res[i*len(b)+j] = prod
-		}
-	}
-	return res, nil
-}
-
 func aggregateDSPFoutput(output [][]*big.Int) []*bls12381.Fr {
 	sums := make([]*bls12381.Fr, len(output[0]))
 	for i := 0; i < len(output[0]); i++ {
@@ -255,4 +304,36 @@ func multiplicativeGroupOrderFactorizationBLS12381() []primeFactor {
 	}
 
 	return primeFactors
+}
+
+// The following structs support parallel processing
+
+// eval2DTask represents a task for the eval2D function.
+type eval2DTask struct {
+	j, k        int
+	oprand      *poly.Polynomial
+	wPoly       *poly.Polynomial
+	div         *poly.Polynomial
+	isLastIndex bool
+}
+
+// eval2DResult represents the result of the eval2D function.
+type eval2DResult struct {
+	poly *poly.Polynomial
+	err  error
+}
+
+// polyTask represents a task for the polynomial multiplication.
+type polyTask struct {
+	aIndex int
+	bIndex int
+	aPoly  *poly.Polynomial
+	bPoly  *poly.Polynomial
+}
+
+// polyResult represents the result of the polynomial multiplication.
+type polyResult struct {
+	aIndex  int
+	bIndex  int
+	product *poly.Polynomial
 }
