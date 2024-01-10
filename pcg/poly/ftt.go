@@ -61,7 +61,7 @@ func NewBLS12381FFT(n int) (*FFT, error) {
 	// Choosing the appropriate root of unity for the +given n is important for the FFT performance.
 	rootOfUnity := big.NewInt(0)
 	switch {
-	case n >= 1 && n <= 7: // For polynomials of degree < 2**8, naive multiplication is generally faster.
+	case n >= 1 && n <= 8: // For polynomials of degree < 2**8, naive multiplication is generally faster.
 		rootOfUnity.SetString(frN8thRootOfUnity, 10)
 	case n == 9:
 		rootOfUnity.SetString(frN9thRootOfUnity, 10)
