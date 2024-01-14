@@ -2,7 +2,6 @@ package dspf
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 	"pcg-master-thesis/dpf"
 )
@@ -12,7 +11,17 @@ type DSPF struct {
 	baseDPF dpf.DPF // The base DPF used to construct the DSPF
 }
 
+// NewDSPFFactory creates a new DSPF factory with a given base DPF and domain.
 func NewDSPFFactory(baseDPF dpf.DPF) *DSPF {
+	return &DSPF{
+		baseDPF: baseDPF,
+	}
+}
+
+// NewDSPFFactoryWithDomain creates a new DSPF factory with a given base DPF and domain.
+// inputDomain sets/overwrites the input domain (= bit length of the special point) of the base DPF.
+func NewDSPFFactoryWithDomain(baseDPF dpf.DPF, inputDomain int) *DSPF {
+	baseDPF.ChangeDomain(inputDomain)
 	return &DSPF{
 		baseDPF: baseDPF,
 	}
@@ -25,20 +34,20 @@ func (d *DSPF) Gen(specialPoints []*big.Int, nonZeroElements []*big.Int) (Key, K
 		return Key{}, Key{}, errors.New("the number of special points and non-zero elements must match")
 	}
 
-	// Check for duplicates in specialPoints
-	seen := make(map[string]struct{})
-	for i, sp := range specialPoints {
-		if sp == nil || nonZeroElements[i] == nil {
-			return Key{}, Key{}, errors.New("special points and non-zero elements cannot be nil")
-		}
+	// Check for duplicates in specialPoints // TODO: For now, we allow duplicates although this is not secure
+	// seen := make(map[string]struct{})
+	// for i, sp := range specialPoints {
+	//	if sp == nil || nonZeroElements[i] == nil {
+	//		return Key{}, Key{}, errors.New("special points and non-zero elements cannot be nil")
+	//	}
 
-		// Use string representation of big.Int for map key
-		spStr := sp.Text(10) // Base 10 for decimal representation
-		if _, exists := seen[spStr]; exists {
-			return Key{}, Key{}, fmt.Errorf("duplicate special point: %s", spStr)
-		}
-		seen[spStr] = struct{}{}
-	}
+	// Use string representation of big.Int for map key
+	// spStr := sp.Text(10) // Base 10 for decimal representation
+	// if _, exists := seen[spStr]; exists {
+	// 	return Key{}, Key{}, fmt.Errorf("duplicate special point: %s", spStr)
+	// }
+	// seen[spStr] = struct{}{}
+	//}
 
 	// Generate DPF keys for each (specialPoint, nonZeroElement) pair
 	var keyAlice Key
@@ -67,8 +76,25 @@ func (d *DSPF) Eval(dspfKey Key, x *big.Int) ([]*big.Int, error) {
 	return ys, nil
 }
 
-// CombineResults combines the results from the evaluations of DSPF key.
-func (d *DSPF) CombineResults(y1 []*big.Int, y2 []*big.Int) (*big.Int, error) {
+// CombineMultipleResults combines the results from multiple (e.g. full) key evaluations.
+func (d *DSPF) CombineMultipleResults(y1 [][]*big.Int, y2 [][]*big.Int) ([]*big.Int, error) {
+	if len(y1) != len(y2) {
+		return nil, errors.New("length of y1 and y2 must match")
+	}
+	combined := make([]*big.Int, len(y1))
+	for i := range y1 {
+		res, err := d.CombineSingleResult(y1[i], y2[i])
+		if err != nil {
+			return nil, err
+		}
+		combined[i] = big.NewInt(0)
+		combined[i].Set(res)
+	}
+	return combined, nil
+}
+
+// CombineSingleResult combines the results from a single key evaluation.
+func (d *DSPF) CombineSingleResult(y1 []*big.Int, y2 []*big.Int) (*big.Int, error) {
 	if len(y1) != len(y2) {
 		return nil, errors.New("length of y1 and y2 must match")
 	}

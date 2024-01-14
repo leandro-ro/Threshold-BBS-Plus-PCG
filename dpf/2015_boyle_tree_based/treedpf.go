@@ -66,13 +66,14 @@ func EmptyKey() *Key {
 // TreeDPF is the main structure to initialize, generate, and evaluate the tree-based DPF.
 type TreeDPF struct {
 	Lambda          int      // Lambda is the security parameter and interpreted in number of bits.
+	Domain          int      // Domain is the domain of the DPF.
 	PrgOutputLength int      // PrgOutputLength sets how many bytes the PRG used in the TreeDPF returns.
 	Modulus         *big.Int // Modulus is the mod of the group we are calculating in and is supposed to be prime.
 }
 
 // InitFactory initializes a new TreeDPF structure with the given security parameter lambda.
 // It returns an error if lambda is not one of the allowed values (128, 192, 256).
-func InitFactory(lambda int) (*TreeDPF, error) {
+func InitFactory(lambda, inputDomain int) (*TreeDPF, error) {
 	if lambda != 128 && lambda != 192 && lambda != 256 {
 		return nil, errors.New("lambda must be 128, 192, or 256")
 	}
@@ -83,6 +84,7 @@ func InitFactory(lambda int) (*TreeDPF, error) {
 
 	return &TreeDPF{
 		Lambda:          lambda,
+		Domain:          inputDomain,
 		PrgOutputLength: prgOutputLength,
 		Modulus:         modulus,
 	}, nil
@@ -96,14 +98,14 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.Key
 	// Choosing n as lambda is a practical consideration. N needs to be constant for all evaluations,
 	// s.t. the all input values besides the special point will evaluate to zero in Eval.
 	// Otherwise, the depth of the tree will vary and the zero requirement of the DPF is not met.
-	n := d.Lambda
-	if specialPointX.BitLen() > d.Lambda {
+	n := d.Domain
+	if specialPointX.BitLen() > d.Domain {
 		return &Key{}, &Key{}, errors.New("the special point is too large. It must be within [0, 2^Lambda - 1]")
 
 	}
 
 	// Extend the bit length of specialPointX to lambda.
-	a, err := dpf.ExtendBigIntToBitLength(specialPointX, d.Lambda)
+	a, err := dpf.ExtendBigIntToBitLength(specialPointX, d.Domain)
 	if err != nil {
 		return &Key{}, &Key{}, err
 	}
@@ -245,13 +247,13 @@ func (d *TreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 		return nil, errors.New("the given key is not a tree-based DPF key")
 	}
 
-	n := d.Lambda
+	n := d.Domain
 
-	if x.BitLen() > d.Lambda {
+	if x.BitLen() > d.Domain {
 		return nil, errors.New("the given point is too large. It must be within [0, 2^Lambda - 1]")
 	}
 
-	a, err := dpf.ExtendBigIntToBitLength(x, d.Lambda)
+	a, err := dpf.ExtendBigIntToBitLength(x, d.Domain)
 	if err != nil {
 		return nil, err
 	}
@@ -312,6 +314,11 @@ func (d *TreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
 
 func (d *TreeDPF) FullEvalFast(key dpf.Key) ([]*big.Int, error) {
 	return nil, errors.New("not implemented")
+}
+
+// ChangeDomain sets a new domain for the DPF.
+func (d *TreeDPF) ChangeDomain(domain int) {
+	d.Domain = domain
 }
 
 // CorrectionWord holds the correction words and bits for the DPF key.

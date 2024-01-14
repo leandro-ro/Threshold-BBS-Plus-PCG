@@ -9,25 +9,25 @@ import (
 )
 
 func TestTreeDPFInitialization(t *testing.T) {
-	d1, err1 := treedpf.InitFactory(128)
+	d1, err1 := treedpf.InitFactory(128, 128)
 	assert.Nil(t, err1)
 	assert.NotNil(t, d1)
 
-	d2, err2 := treedpf.InitFactory(192)
+	d2, err2 := treedpf.InitFactory(192, 128)
 	assert.Nil(t, err2)
 	assert.NotNil(t, d2)
 
-	d3, err3 := treedpf.InitFactory(256)
+	d3, err3 := treedpf.InitFactory(256, 128)
 	assert.Nil(t, err3)
 	assert.NotNil(t, d3)
 
-	d4, err4 := treedpf.InitFactory(5)
+	d4, err4 := treedpf.InitFactory(5, 128)
 	assert.NotNil(t, err4)
 	assert.Nil(t, d4)
 }
 
 func TestTreeDPFKeySerializationAndDeserialization(t *testing.T) {
-	d, _ := treedpf.InitFactory(128)
+	d, _ := treedpf.InitFactory(128, 128)
 
 	x := big.NewInt(5)
 	y := big.NewInt(10)
@@ -47,12 +47,14 @@ func TestTreeDPFKeySerializationAndDeserialization(t *testing.T) {
 
 func TestTreeDPFGenAndEval128(t *testing.T) {
 	lambda := 128
-	d, err := treedpf.InitFactory(lambda)
+	domain := 128
+	d, err := treedpf.InitFactory(lambda, domain)
 	assert.Nil(t, err)
 
-	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
-	x, _ := rand.Int(rand.Reader, maxInput)
-	y, _ := rand.Int(rand.Reader, maxInput)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	x, _ := rand.Int(rand.Reader, maxInputX)
+	maxInputY := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	y, _ := rand.Int(rand.Reader, maxInputY)
 
 	k1, k2, err := d.Gen(x, y)
 	assert.Nil(t, err)
@@ -69,12 +71,14 @@ func TestTreeDPFGenAndEval128(t *testing.T) {
 
 func TestTreeDPFGenAndEval192(t *testing.T) {
 	lambda := 192
-	d, err := treedpf.InitFactory(lambda)
+	domain := 128
+	d, err := treedpf.InitFactory(lambda, domain)
 	assert.Nil(t, err)
 
-	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
-	x, _ := rand.Int(rand.Reader, maxInput)
-	y, _ := rand.Int(rand.Reader, maxInput)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	x, _ := rand.Int(rand.Reader, maxInputX)
+	maxInputY := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	y, _ := rand.Int(rand.Reader, maxInputY)
 
 	k1, k2, err := d.Gen(x, y)
 	assert.Nil(t, err)
@@ -91,12 +95,14 @@ func TestTreeDPFGenAndEval192(t *testing.T) {
 
 func TestTreeDPFGenAndEval256(t *testing.T) {
 	lambda := 256
-	d, err := treedpf.InitFactory(lambda)
+	domain := 128
+	d, err := treedpf.InitFactory(lambda, domain)
 	assert.Nil(t, err)
 
-	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
-	x, _ := rand.Int(rand.Reader, maxInput)
-	y, _ := rand.Int(rand.Reader, maxInput)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	x, _ := rand.Int(rand.Reader, maxInputX)
+	maxInputY := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	y, _ := rand.Int(rand.Reader, maxInputY)
 
 	k1, k2, err := d.Gen(x, y)
 	assert.Nil(t, err)
@@ -113,14 +119,16 @@ func TestTreeDPFGenAndEval256(t *testing.T) {
 
 func TestTreeDPFStress(t *testing.T) {
 	lambda := 256
-	d, err := treedpf.InitFactory(lambda)
+	domain := 128
+	d, err := treedpf.InitFactory(lambda, domain)
 	assert.Nil(t, err)
 
-	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	maxInputY := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
 
 	for i := 0; i < 500; i++ {
-		x, _ := rand.Int(rand.Reader, maxInput)
-		y, _ := rand.Int(rand.Reader, maxInput)
+		x, _ := rand.Int(rand.Reader, maxInputX)
+		y, _ := rand.Int(rand.Reader, maxInputY)
 
 		k1, k2, err := d.Gen(x, y)
 		assert.Nil(t, err)
@@ -138,17 +146,19 @@ func TestTreeDPFStress(t *testing.T) {
 
 func TestTreeDPFGenAndEvalToZero(t *testing.T) {
 	lambda := 128
-	d, err := treedpf.InitFactory(lambda)
+	domain := 128
+	d, err := treedpf.InitFactory(lambda, domain)
 	assert.Nil(t, err)
 
-	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
-	x, _ := rand.Int(rand.Reader, maxInput)
-	wx1, _ := rand.Int(rand.Reader, maxInput)
-	wx2, _ := rand.Int(rand.Reader, maxInput)
-	wx3, _ := rand.Int(rand.Reader, maxInput)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	x, _ := rand.Int(rand.Reader, maxInputX)
+	wx1, _ := rand.Int(rand.Reader, maxInputX)
+	wx2, _ := rand.Int(rand.Reader, maxInputX)
+	wx3, _ := rand.Int(rand.Reader, maxInputX)
 	zero := big.NewInt(0)
 
-	y, _ := rand.Int(rand.Reader, maxInput)
+	maxInputY := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	y, _ := rand.Int(rand.Reader, maxInputY)
 
 	k1, k2, err := d.Gen(x, y)
 	assert.Nil(t, err)
@@ -180,23 +190,24 @@ func TestTreeDPFGenAndEvalToZero(t *testing.T) {
 	assert.Equal(t, zero, d.CombineResults(res1, res2))
 }
 
-func BenchmarkTreeDPFGen128(b *testing.B) { benchmarkTreeDPFGen(b, 128) }
-func BenchmarkTreeDPFGen192(b *testing.B) { benchmarkTreeDPFGen(b, 192) }
-func BenchmarkTreeDPFGen256(b *testing.B) { benchmarkTreeDPFGen(b, 256) }
+func BenchmarkTreeDPFGen128(b *testing.B) { benchmarkTreeDPFGen(b, 128, 128) }
+func BenchmarkTreeDPFGen192(b *testing.B) { benchmarkTreeDPFGen(b, 192, 128) }
+func BenchmarkTreeDPFGen256(b *testing.B) { benchmarkTreeDPFGen(b, 256, 128) }
 
-func BenchmarkTreeDPFEval128(b *testing.B) { benchmarkTreeDPFEval(b, 128) }
-func BenchmarkTreeDPFEval192(b *testing.B) { benchmarkTreeDPFEval(b, 192) }
-func BenchmarkTreeDPFEval256(b *testing.B) { benchmarkTreeDPFEval(b, 256) }
+func BenchmarkTreeDPFEval128(b *testing.B) { benchmarkTreeDPFEval(b, 128, 128) }
+func BenchmarkTreeDPFEval192(b *testing.B) { benchmarkTreeDPFEval(b, 192, 128) }
+func BenchmarkTreeDPFEval256(b *testing.B) { benchmarkTreeDPFEval(b, 256, 128) }
 
-func benchmarkTreeDPFGen(b *testing.B, lambda int) {
-	d, err := treedpf.InitFactory(lambda)
+func benchmarkTreeDPFGen(b *testing.B, lambda, domain int) {
+	d, err := treedpf.InitFactory(lambda, domain)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
-	x, _ := rand.Int(rand.Reader, maxInput)
-	y, _ := rand.Int(rand.Reader, maxInput)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	x, _ := rand.Int(rand.Reader, maxInputX)
+	maxInputY := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	y, _ := rand.Int(rand.Reader, maxInputY)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -207,15 +218,16 @@ func benchmarkTreeDPFGen(b *testing.B, lambda int) {
 	}
 }
 
-func benchmarkTreeDPFEval(b *testing.B, lambda int) {
-	d, err := treedpf.InitFactory(lambda)
+func benchmarkTreeDPFEval(b *testing.B, lambda, domain int) {
+	d, err := treedpf.InitFactory(lambda, domain)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	maxInput := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
-	x, _ := rand.Int(rand.Reader, maxInput)
-	y, _ := rand.Int(rand.Reader, maxInput)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+	x, _ := rand.Int(rand.Reader, maxInputX)
+	maxInputY := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(lambda)), nil)
+	y, _ := rand.Int(rand.Reader, maxInputY)
 
 	k1, _, err := d.Gen(x, y)
 	if err != nil {

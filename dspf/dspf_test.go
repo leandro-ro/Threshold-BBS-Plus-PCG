@@ -3,6 +3,7 @@ package dspf
 import (
 	"crypto/rand"
 	"fmt"
+	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	treedpf "pcg-master-thesis/dpf/2015_boyle_tree_based"
@@ -45,7 +46,7 @@ func TestDSPFGenDuplicateSpecialPoints(t *testing.T) {
 }
 
 func TestDSPFGenEvalTreeDPF(t *testing.T) {
-	treeDPF128, err := treedpf.InitFactory(128)
+	treeDPF128, err := treedpf.InitFactory(128, 128)
 	if err != nil {
 		t.Errorf("InitFactory returned an unexpected error: %v", err)
 	}
@@ -85,15 +86,15 @@ func TestDSPFGenEvalTreeDPF(t *testing.T) {
 		t.Errorf("Eval returned an unexpected error: %v", err)
 	}
 
-	// Test CombineResults
+	// Test CombineSingleResult
 	var result *big.Int
-	result, err = dspf.CombineResults(ysAlice, ysBob)
+	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
 	if err != nil {
-		t.Errorf("CombineResults returned an unexpected error: %v", err)
+		t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
 	}
 	// Expect result to be zero
 	if result.Cmp(big.NewInt(0)) != 0 {
-		t.Errorf("CombineResults did not return zero")
+		t.Errorf("CombineSingleResult did not return zero")
 	}
 
 	// Test Eval with non-zero result
@@ -106,14 +107,14 @@ func TestDSPFGenEvalTreeDPF(t *testing.T) {
 	if err != nil {
 		t.Errorf("Eval returned an unexpected error: %v", err)
 	}
-	result, err = dspf.CombineResults(ysAlice, ysBob)
+	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
 	if err != nil {
-		t.Errorf("CombineResults returned an unexpected error: %v", err)
+		t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
 	}
 
 	// Expect result to be non-zero
 	if result.Cmp(nz2) != 0 {
-		t.Errorf("CombineResults did not return the correct result")
+		t.Errorf("CombineSingleResult did not return the correct result")
 	}
 }
 
@@ -158,15 +159,15 @@ func TestDSPFGenEvalOpTreeDPF(t *testing.T) {
 		t.Errorf("Eval returned an unexpected error: %v", err)
 	}
 
-	// Test CombineResults
+	// Test CombineSingleResult
 	var result *big.Int
-	result, err = dspf.CombineResults(ysAlice, ysBob)
+	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
 	if err != nil {
-		t.Errorf("CombineResults returned an unexpected error: %v", err)
+		t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
 	}
 	// Expect result to be zero
 	if result.Cmp(big.NewInt(0)) != 0 {
-		t.Errorf("CombineResults did not return zero")
+		t.Errorf("CombineSingleResult did not return zero")
 	}
 
 	// Test Eval with non-zero result
@@ -179,14 +180,14 @@ func TestDSPFGenEvalOpTreeDPF(t *testing.T) {
 	if err != nil {
 		t.Errorf("Eval returned an unexpected error: %v", err)
 	}
-	result, err = dspf.CombineResults(ysAlice, ysBob)
+	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
 	if err != nil {
-		t.Errorf("CombineResults returned an unexpected error: %v", err)
+		t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
 	}
 
 	// Expect result to be non-zero
 	if result.Cmp(nz2) != 0 {
-		t.Errorf("CombineResults did not return the correct result")
+		t.Errorf("CombineSingleResult did not return the correct result")
 	}
 }
 
@@ -234,12 +235,19 @@ func TestDSPFFullEvalOpTreeDPF(t *testing.T) {
 	}
 
 	for i := 0; i < tCount; i++ {
-		res, err := dspf.CombineResults(ys1[i], ys2[i])
+		res, err := dspf.CombineSingleResult(ys1[i], ys2[i])
 		if err != nil {
-			t.Errorf("CombineResults returned an unexpected error: %v", err)
+			t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
 		}
 
 		assert.Equal(t, 0, res.Cmp(nonZeroElements[i]))
+	}
+
+	resFull, err := dspf.CombineMultipleResults(ys1, ys2)
+	assert.Nil(t, err)
+	assert.Equal(t, len(resFull), len(ys1))
+	for i := 0; i < len(resFull); i++ {
+		assert.Equal(t, 0, resFull[i].Cmp(nonZeroElements[i]))
 	}
 }
 
@@ -287,12 +295,105 @@ func TestDSPFFullEvalFastOpTreeDPF(t *testing.T) {
 	}
 
 	for i := 0; i < tCount; i++ {
-		res, err := dspf.CombineResults(ys1[i], ys2[i])
+		res, err := dspf.CombineSingleResult(ys1[i], ys2[i])
 		if err != nil {
-			t.Errorf("CombineResults returned an unexpected error: %v", err)
+			t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
 		}
 
 		assert.Equal(t, 0, res.Cmp(nonZeroElements[i]))
+	}
+
+	resFull, err := dspf.CombineMultipleResults(ys1, ys2)
+	assert.Nil(t, err)
+	assert.Equal(t, len(resFull), len(ys1))
+	for i := 0; i < len(resFull); i++ {
+		assert.Equal(t, 0, resFull[i].Cmp(nonZeroElements[i]))
+	}
+}
+
+func TestDSPFFullEvalFastOpTreeDPFSum(t *testing.T) {
+	domain := 10
+	treedpf128n10, err := optreedpf.InitFactory(128, domain) // Small domain size for testing
+	if err != nil {
+		t.Errorf("InitFactory returned an unexpected error: %v", err)
+	}
+	dspf := NewDSPFFactory(treedpf128n10)
+
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+
+	tCount := 6 // Number of random points and elements to generate
+	specialPoints := make([]*big.Int, tCount)
+	nonZeroElements := make([]*big.Int, tCount)
+
+	for i := 0; i < tCount; i++ {
+		x, err := rand.Int(rand.Reader, maxInputX)
+		if err != nil {
+			t.Errorf("Error generating random x: %v", err)
+		}
+		specialPoints[i] = x
+
+		y, err := rand.Int(rand.Reader, treedpf128n10.BetaMax) // Max input is the base field size
+		if err != nil {
+			t.Errorf("Error generating random y: %v", err)
+		}
+		nonZeroElements[i] = y
+	}
+
+	k1, k2, err := dspf.Gen(specialPoints, nonZeroElements)
+	if err != nil {
+		return
+	}
+
+	ys1, err := dspf.FullEvalFast(k1)
+	if err != nil {
+		t.Errorf("Eval returned an unexpected error: %v", err)
+	}
+
+	ys2, err := dspf.FullEvalFast(k2)
+	if err != nil {
+		t.Errorf("Eval returned an unexpected error: %v", err)
+	}
+
+	ys1summed := make([]*bls12381.Fr, len(ys1[0]))
+	for i := 0; i < len(ys1[0]); i++ {
+		for j := 0; j < len(ys1); j++ {
+			if ys1summed[i] == nil {
+				ys1summed[i] = bls12381.NewFr()
+			}
+			val := bls12381.NewFr().FromBytes(ys1[j][i].Bytes())
+			ys1summed[i].Add(ys1summed[i], val)
+		}
+	}
+
+	ys2summed := make([]*bls12381.Fr, len(ys2[0]))
+	for i := 0; i < len(ys2[0]); i++ {
+		for j := 0; j < len(ys2); j++ {
+			if ys2summed[i] == nil {
+				ys2summed[i] = bls12381.NewFr()
+			}
+			val := bls12381.NewFr().FromBytes(ys2[j][i].Bytes())
+			ys2summed[i].Add(ys2summed[i], val)
+		}
+	}
+
+	result := make([]*bls12381.Fr, len(ys1summed))
+	for i := 0; i < len(result); i++ {
+		result[i] = bls12381.NewFr()
+		result[i].Add(ys1summed[i], ys2summed[i])
+	}
+
+	for i := 0; i < len(result); i++ {
+		found := false
+		for pos, specialPoint := range specialPoints {
+			if big.NewInt(int64(i)).Cmp(specialPoint) == 0 {
+				val := result[i].ToBig()
+				assert.Equal(t, 0, val.Cmp(nonZeroElements[pos]))
+				found = true
+			}
+		}
+		if !found {
+			assert.Equal(t, 0, result[i].ToBig().Cmp(big.NewInt(0)))
+		}
 	}
 }
 
