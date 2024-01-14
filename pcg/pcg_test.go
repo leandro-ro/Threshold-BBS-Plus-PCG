@@ -76,18 +76,9 @@ func TestPCGEnd2End(t *testing.T) {
 }
 
 func BenchmarkOvernight(b *testing.B) {
-	BenchmarkEvalN9(b)
-	BenchmarkEvalN10(b)
-	BenchmarkEvalN11(b)
-	BenchmarkEvalN12(b)
-	BenchmarkEvalN13(b)
-	BenchmarkEvalN14(b)
 	BenchmarkEvalN15(b)
 	BenchmarkEvalN16(b)
 	BenchmarkEvalN17(b)
-	BenchmarkEvalN18(b)
-	BenchmarkEvalN19(b)
-	BenchmarkEvalN20(b)
 }
 
 // Benchmarking TrustedSeedGen
