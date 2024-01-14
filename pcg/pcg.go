@@ -18,7 +18,7 @@ import (
 
 type PCG struct {
 	lambda int        // lambda is the security parameter used to determine the output length of the underlying PRandomG
-	N      int        // N is the domain of the PCG
+	N      int        // N is the domain of the PCG. For given N, the PCG is able to generate up to 2^N BBS+ tuples.
 	n      int        // n is the number of parties participating in this PCG
 	c      int        // c is the first security parameter of the Module-LPN assumption
 	t      int        // t is the second security parameter of the Module-LPN assumption
@@ -28,21 +28,17 @@ type PCG struct {
 }
 
 // NewPCG creates a new PCG with the given parameters.
-// lambda is the security parameter
-// N is the domain determines the amount of presignatures (2^N) that can be generated
-// n is the number of parties participating in this PCG
-// c is the first security parameter of the Module-LPN assumption
-// t is the second security parameter of the Module-LPN assumption
+// It uses OptreeDPF as the underlying DPF.
 func NewPCG(lambda, N, n, c, t int) (*PCG, error) {
 	seed, _ := bytesToInt64(dpf.RandomSeed(8))
 	rng := rand.New(rand.NewSource(seed)) // TODO: Swap this out for a secure PRG
 
 	// TODO: Make base DPF exchangeable
-	baseDpfN, err := optreedpf.InitFactory(lambda, N)
+	baseDpfDomain, err := optreedpf.InitFactory(lambda, N)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize base DPF with domain N: %w", err)
 	}
-	baseDpf2N, err := optreedpf.InitFactory(lambda, N+1)
+	baseDpfDoubleDomain, err := optreedpf.InitFactory(lambda, N+1) // 2^N, therefore double the domain size with +1
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize base DPF with domain 2N: %w", err)
 	}
@@ -53,10 +49,84 @@ func NewPCG(lambda, N, n, c, t int) (*PCG, error) {
 		n:      n,
 		c:      c,
 		t:      t,
-		dspfN:  dspf.NewDSPFFactoryWithDomain(baseDpfN, N),
-		dspf2N: dspf.NewDSPFFactoryWithDomain(baseDpf2N, N+1),
+		dspfN:  dspf.NewDSPFFactoryWithDomain(baseDpfDomain, N),
+		dspf2N: dspf.NewDSPFFactoryWithDomain(baseDpfDoubleDomain, N+1),
 		rng:    rng,
 	}, nil
+}
+
+// Define the ring we are working with.
+func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
+	// Define the Ring we work in
+	smallFactorThreshold := big.NewInt(1000)
+	groupOrderFactorization := multiplicativeGroupOrderFactorizationBLS12381()
+
+	smallFactors := make([]primeFactor, 0)
+	for i := 0; i < len(groupOrderFactorization); i++ {
+		if groupOrderFactorization[i].Factor.Cmp(smallFactorThreshold) < 0 {
+			smallFactors = append(smallFactors, groupOrderFactorization[i])
+		}
+	}
+
+	smoothOrder := big.NewInt(1)
+	for i := 0; i < len(smallFactors); i++ {
+		val := big.NewInt(0)
+		val.Exp(smallFactors[i].Factor, big.NewInt(int64(smallFactors[i].Exponent)), nil)
+		smoothOrder.Mul(smoothOrder, val)
+	}
+
+	groupOrder := big.NewInt(0)
+	groupOrder.SetString(poly.FrModulus, 16) // BLS12-381 group order
+
+	primitiveRootOfUnity := big.NewInt(0)
+	primitiveRootOfUnity.SetString(poly.FrPrimitiveRootOfUnity, 16) // BLS12-381 primitive root of unity for FrModulus
+
+	// Compute primitiveRootOfUnity^((groupOrder-1)/smoothOrder) mod groupOrder
+	exp := new(big.Int).Sub(groupOrder, big.NewInt(1))
+	exp.Div(exp, smoothOrder)
+	multiplicativeSmoothGroupGenerator := new(big.Int).Exp(primitiveRootOfUnity, exp, groupOrder)
+
+	twoPowN := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
+	modCheck := new(big.Int).Mod(smoothOrder, twoPowN)
+	if !(modCheck.Cmp(big.NewInt(0)) == 0) {
+		return nil, fmt.Errorf("order must divide multiplactive group order of BLS12-381")
+	}
+
+	smoothOrderDivN := new(big.Int).Div(smoothOrder, twoPowN)
+	powerIteratorBase := new(big.Int).Exp(multiplicativeSmoothGroupGenerator, smoothOrderDivN, groupOrder)
+
+	// init div as 1 poly
+	div := poly.NewFromFr([]*bls12381.Fr{bls12381.NewFr().One()})
+	roots := make([]*bls12381.Fr, twoPowN.Int64())
+	for i := 0; i < int(twoPowN.Int64()); i++ {
+		if useCyclotomic {
+			val := new(big.Int).Exp(powerIteratorBase, big.NewInt(int64(i+1)), groupOrder)
+			roots[i] = bls12381.NewFr().FromBytes(val.Bytes())
+		} else {
+			val, err := bls12381.NewFr().Rand(p.rng)
+			if err != nil {
+				return nil, err
+			}
+
+			bZero := big.NewInt(0).Sub(groupOrder, val.ToBig())
+			bOne := big.NewInt(1)
+			b := poly.NewFromBig([]*big.Int{bZero, bOne})
+
+			err = div.Mul(b)
+			if err != nil {
+				return nil, err
+			}
+
+			roots[i] = val
+		}
+
+	}
+
+	if useCyclotomic {
+		div, _ = poly.NewCyclotomicPolynomial(twoPowN) // div = x^N^2 + neg(1)
+	}
+
+	return &Ring{div, roots}, nil
 }
 
 // TrustedSeedGen generates a seed for each party via a central dealer.
@@ -258,86 +328,6 @@ func (p *PCG) PickRandomPolynomials() ([]*poly.Polynomial, error) {
 	polys[p.c-1] = one
 
 	return polys, nil
-}
-
-// Ring defines the ring we work in.
-type Ring struct {
-	Div   *poly.Polynomial
-	Roots []*bls12381.Fr
-}
-
-// Define the ring we are working with.
-func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
-	// Define the Ring we work in
-	smallFactorThreshold := big.NewInt(1000)
-	groupOrderFactorization := multiplicativeGroupOrderFactorizationBLS12381()
-
-	smallFactors := make([]primeFactor, 0)
-	for i := 0; i < len(groupOrderFactorization); i++ {
-		if groupOrderFactorization[i].Factor.Cmp(smallFactorThreshold) < 0 {
-			smallFactors = append(smallFactors, groupOrderFactorization[i])
-		}
-	}
-
-	smoothOrder := big.NewInt(1)
-	for i := 0; i < len(smallFactors); i++ {
-		val := big.NewInt(0)
-		val.Exp(smallFactors[i].Factor, big.NewInt(int64(smallFactors[i].Exponent)), nil)
-		smoothOrder.Mul(smoothOrder, val)
-	}
-
-	groupOrder := big.NewInt(0)
-	groupOrder.SetString(poly.FrModulus, 16) // BLS12-381 group order
-
-	primitiveRootOfUnity := big.NewInt(0)
-	primitiveRootOfUnity.SetString(poly.FrPrimitiveRootOfUnity, 16) // BLS12-381 primitive root of unity for FrModulus
-
-	// Compute primitiveRootOfUnity^((groupOrder-1)/smoothOrder) mod groupOrder
-	exp := new(big.Int).Sub(groupOrder, big.NewInt(1))
-	exp.Div(exp, smoothOrder)
-	multiplicativeSmoothGroupGenerator := new(big.Int).Exp(primitiveRootOfUnity, exp, groupOrder)
-
-	twoPowN := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
-	modCheck := new(big.Int).Mod(smoothOrder, twoPowN)
-	if !(modCheck.Cmp(big.NewInt(0)) == 0) {
-		return nil, fmt.Errorf("order must divide multiplactive group order of BLS12-381")
-	}
-
-	smoothOrderDivN := new(big.Int).Div(smoothOrder, twoPowN)
-	powerIteratorBase := new(big.Int).Exp(multiplicativeSmoothGroupGenerator, smoothOrderDivN, groupOrder)
-
-	// init div as 1 poly
-	div := poly.NewFromFr([]*bls12381.Fr{bls12381.NewFr().One()})
-	roots := make([]*bls12381.Fr, twoPowN.Int64())
-	for i := 0; i < int(twoPowN.Int64()); i++ {
-		if useCyclotomic {
-			val := new(big.Int).Exp(powerIteratorBase, big.NewInt(int64(i+1)), groupOrder)
-			roots[i] = bls12381.NewFr().FromBytes(val.Bytes())
-		} else {
-			val, err := bls12381.NewFr().Rand(p.rng)
-			if err != nil {
-				return nil, err
-			}
-
-			bZero := big.NewInt(0).Sub(groupOrder, val.ToBig())
-			bOne := big.NewInt(1)
-			b := poly.NewFromBig([]*big.Int{bZero, bOne})
-
-			err = div.Mul(b)
-			if err != nil {
-				return nil, err
-			}
-
-			roots[i] = val
-		}
-
-	}
-
-	if useCyclotomic {
-		div, _ = poly.NewCyclotomicPolynomial(twoPowN) // div = x^N^2 + neg(1)
-	}
-
-	return &Ring{div, roots}, nil
 }
 
 // evalFinalShare evaluates the final share of the PCG for the given polynomial.
@@ -599,23 +589,6 @@ func (p *PCG) embedOLECorrelations(omega, o [][][]*big.Int, beta, b [][][]*bls12
 		}
 	}
 	return U, nil
-}
-
-type SampledExponents struct {
-	values [][][]*big.Int
-}
-
-func (s *SampledExponents) DeepCopy() *SampledExponents {
-	res := init3DSliceBigInt(len(s.values), len(s.values[0]), len(s.values[0][0]))
-	for i := 0; i < len(s.values); i++ {
-		for j := 0; j < len(s.values[0]); j++ {
-			for k := 0; k < len(s.values[0][0]); k++ {
-				val := new(big.Int).SetBytes(s.values[i][j][k].Bytes())
-				res[i][j][k] = val
-			}
-		}
-	}
-	return &SampledExponents{res}
 }
 
 // sampleExponents samples values later used as poly exponents by picking p.n*p.c random t-vectors from N.

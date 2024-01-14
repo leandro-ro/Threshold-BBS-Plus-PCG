@@ -37,11 +37,10 @@ func (t *BBSPlusTupleGenerator) GenBBSPlusTuple(root *bls12381.Fr) *BBSPlusTuple
 	eiElement := t.ePoly.Evaluate(root)
 	siElement := t.sPoly.Evaluate(root)
 	alphaiElement := t.alphaPoly.Evaluate(root)
-	delta0iElement := t.delta0Poly.Evaluate(root)
-	delta1iElement := t.delta1Poly.Evaluate(root)
 
+	// Recombine delta0i and delta1i to delta_i
 	deltaiElement := bls12381.NewFr()
-	deltaiElement.Add(delta0iElement, delta1iElement)
+	deltaiElement.Add(t.delta0Poly.Evaluate(root), t.delta1Poly.Evaluate(root))
 
 	return NewBBSPlusTuple(t.skShare, aiElement, eiElement, siElement, alphaiElement, deltaiElement)
 }

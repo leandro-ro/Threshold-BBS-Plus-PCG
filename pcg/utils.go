@@ -306,7 +306,11 @@ func multiplicativeGroupOrderFactorizationBLS12381() []primeFactor {
 	return primeFactors
 }
 
-// The following structs support parallel processing
+// Ring defines the ring we work in.
+type Ring struct {
+	Div   *poly.Polynomial
+	Roots []*bls12381.Fr
+}
 
 // evalFinalShareTask represents a task for the eval2D function.
 type evalFinalShareTask struct {

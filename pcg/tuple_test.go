@@ -5,6 +5,5 @@ import (
 )
 
 func TestTupleSerialization(t *testing.T) {
-	// Create a new BBS+ tuple
-	// TODO - create a new BBS+ tuple
+	// TODO: Add test
 }
