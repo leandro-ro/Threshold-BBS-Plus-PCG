@@ -130,7 +130,7 @@ func (d *DSPF) FullEval(dspfKey Key) ([][]*big.Int, error) {
 }
 
 // FullEvalFast evaluates each DPF of the DSPF on all points in the domain.
-// It uses the parallelized FullEval method of the base DPF and is especially suited to speed up evaluation of larger domains.
+// It parallelizes the evaluation of each DPF.
 func (d *DSPF) FullEvalFast(dspfKey Key) ([][]*big.Int, error) {
 	ys := make([][]*big.Int, len(dspfKey.DPFKeys))
 	errCh := make(chan error, 1)
