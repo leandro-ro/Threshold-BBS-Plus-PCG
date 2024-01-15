@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 	"pcg-master-thesis/dpf"
+	"sync"
 )
 
 // DSPF is a Distributed Sum Of Point Function. It uses multiple DPFs to realize a multipoint function.
@@ -132,12 +133,33 @@ func (d *DSPF) FullEval(dspfKey Key) ([][]*big.Int, error) {
 // It uses the parallelized FullEval method of the base DPF and is especially suited to speed up evaluation of larger domains.
 func (d *DSPF) FullEvalFast(dspfKey Key) ([][]*big.Int, error) {
 	ys := make([][]*big.Int, len(dspfKey.DPFKeys))
+	errCh := make(chan error, 1)
+	wg := sync.WaitGroup{}
+
 	for i, key := range dspfKey.DPFKeys {
-		y, err := d.baseDPF.FullEvalFast(key)
-		if err != nil {
-			return nil, err
-		}
-		ys[i] = y
+		wg.Add(1)
+		go func(i int, key dpf.Key) {
+			defer wg.Done()
+
+			y, err := d.baseDPF.FullEvalFast(key)
+			if err != nil {
+				select {
+				case errCh <- err:
+				default:
+				}
+				return
+			}
+
+			ys[i] = y
+		}(i, key)
 	}
+
+	wg.Wait()
+	close(errCh)
+
+	if err, ok := <-errCh; ok {
+		return nil, err
+	}
+
 	return ys, nil
 }
