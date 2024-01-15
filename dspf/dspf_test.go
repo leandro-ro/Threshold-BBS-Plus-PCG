@@ -402,14 +402,38 @@ func BenchmarkOpTreeDSPFFullEval128_n10_t6(b *testing.B) { benchmarkOpTreeDSPFFu
 func BenchmarkOpTreeDSPFFullEval128_n15_t6(b *testing.B) { benchmarkOpTreeDSPFFullEval(b, 128, 15, 6) }
 
 // The settings below are suitable for the PCG (e.g. (c,t) = (4, 16) or (8, 5))
-func BenchmarkOpTreeDSPFFullEvalFast128_n20_t5(b *testing.B) {
-	benchmarkOpTreeDSPFFullEvalFast(b, 128, 20, 5)
+func BenchmarkOpTreeDSPFFullEvalFast128_n10_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 10, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n11_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 11, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n12_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 12, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n13_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 13, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n14_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 14, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n15_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 15, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n16_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 16, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n17_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 17, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n18_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 18, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n19_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 19, 16)
 }
 func BenchmarkOpTreeDSPFFullEvalFast128_n20_t16(b *testing.B) {
 	benchmarkOpTreeDSPFFullEvalFast(b, 128, 20, 16)
-}
-func BenchmarkOpTreeDSPFFullEvalFast128_n21_t16(b *testing.B) {
-	benchmarkOpTreeDSPFFullEvalFast(b, 128, 21, 16)
 }
 
 func benchmarkOpTreeDSPFFullEval(b *testing.B, lambda, domain, t int) {
