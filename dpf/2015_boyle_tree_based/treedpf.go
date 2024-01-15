@@ -1,5 +1,5 @@
 // Package treedpf provides a tree-based Distributed Point Function implementation.
-// It is based on Algorithm 1 (Gen) & 2 (Eval) from "Function Secret Sharing"
+// It is based on Algorithm 1 (Gen) & 2 (EvalCombined) from "Function Secret Sharing"
 // by Elette Boyle, Niv Gilboa, and Yuval Ishai, published in EUROCRYPT 2015.
 // Link: https://link.springer.com/content/pdf/10.1007/978-3-662-46803-6_12.pdf
 //
@@ -96,7 +96,7 @@ func (d *TreeDPF) Gen(specialPointX *big.Int, nonZeroElementY *big.Int) (dpf.Key
 	b := nonZeroElementY // This is just syntactic sugar to resemble the formal description of the algorithm.
 
 	// Choosing n as lambda is a practical consideration. N needs to be constant for all evaluations,
-	// s.t. the all input values besides the special point will evaluate to zero in Eval.
+	// s.t. the all input values besides the special point will evaluate to zero in EvalCombined.
 	// Otherwise, the depth of the tree will vary and the zero requirement of the DPF is not met.
 	n := d.Domain
 	if specialPointX.BitLen() > d.Domain {
