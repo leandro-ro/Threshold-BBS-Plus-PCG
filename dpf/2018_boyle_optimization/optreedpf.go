@@ -444,7 +444,7 @@ func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord
 		}
 
 		// Check if a new thread should be spawned
-		if depth == 0 { // We disabled parallelization here for benchmarks. Parallelization done on DSPF level.
+		if depth == -1 { // We disabled parallelization here for benchmarks. Parallelization done on DSPF level.
 			leftChan := make(chan []*big.Int)
 			rightChan := make(chan []*big.Int)
 			errChan := make(chan error)
