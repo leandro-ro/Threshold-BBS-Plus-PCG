@@ -8,7 +8,7 @@ import (
 )
 
 func TestPCGEnd2End(t *testing.T) {
-	pcg, err := NewPCG(128, 10, 2, 4, 16)
+	pcg, err := NewPCG(128, 10, 2, 2, 4)
 	assert.Nil(t, err)
 
 	seeds, err := pcg.TrustedSeedGen()

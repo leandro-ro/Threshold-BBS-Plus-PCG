@@ -410,20 +410,12 @@ func (p *PCG) evalFinalShare2D(w [][]*poly.Polynomial, oprand []*poly.Polynomial
 				remainder, err := task.wPoly.Mod(task.div)
 				result = evalFinalShareResult{remainder, err}
 			} else {
-				oprandMod, err := task.oprand.Mod(task.div)
+				prod, err := poly.Mul(task.oprand, task.wPoly)
 				if err != nil {
 					results <- evalFinalShareResult{nil, err}
 					return
 				}
-
-				prod, err := poly.Mul(oprandMod, task.wPoly)
-				if err != nil {
-					results <- evalFinalShareResult{nil, err}
-					return
-				}
-
-				remainder, err := prod.Mod(task.div)
-				result = evalFinalShareResult{remainder, err}
+				result = evalFinalShareResult{prod, err}
 			}
 			results <- result
 		}
