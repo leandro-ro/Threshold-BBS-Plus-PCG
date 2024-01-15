@@ -471,11 +471,6 @@ func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedSk *bls12381.Fr, seedDS
 						eval0Poly := poly.NewFromFr(eval0Aggregated)
 						ur.Add(eval0Poly)
 
-						ur, err = ur.Mod(div)
-						if err != nil {
-							return nil, err
-						}
-
 						eval1, err := p.dspfN.FullEvalFast(seedDSPFKeys[j][i][r].Key1)
 						if err != nil {
 							return nil, err
@@ -483,11 +478,6 @@ func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedSk *bls12381.Fr, seedDS
 						eval1Aggregated := aggregateDSPFoutput(eval1) // TODO: Workaround... make this more elegant
 						eval1Poly := poly.NewFromFr(eval1Aggregated)
 						ur.Add(eval1Poly)
-
-						ur, err = ur.Mod(div)
-						if err != nil {
-							return nil, err
-						}
 					}
 				}
 			}
@@ -504,10 +494,6 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 		w[r] = make([]*poly.Polynomial, p.c)
 		for s := 0; s < p.c; s++ {
 			wrs, err := poly.Mul(u[r], v[s]) // u an r are t-sparse -> t*t complexity
-			if err != nil {
-				return nil, err
-			}
-			wrs, err = wrs.Mod(div)
 			if err != nil {
 				return nil, err
 			}
@@ -533,10 +519,6 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 						}
 					}
 				}
-			}
-			wrs, err = wrs.Mod(div)
-			if err != nil {
-				return nil, err
 			}
 			w[r][s] = wrs
 		}
