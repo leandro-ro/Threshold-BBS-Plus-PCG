@@ -76,7 +76,6 @@ func TestPCGEnd2End(t *testing.T) {
 }
 
 func BenchmarkOvernight(b *testing.B) {
-	BenchmarkEvalN9(b)
 	BenchmarkEvalN10(b)
 	BenchmarkEvalN11(b)
 	BenchmarkEvalN12(b)
