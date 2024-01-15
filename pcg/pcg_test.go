@@ -8,7 +8,7 @@ import (
 )
 
 func TestPCGEnd2End(t *testing.T) {
-	pcg, err := NewPCG(128, 10, 2, 2, 4)
+	pcg, err := NewPCG(128, 10, 2, 4, 16)
 	assert.Nil(t, err)
 
 	seeds, err := pcg.TrustedSeedGen()
@@ -76,9 +76,9 @@ func TestPCGEnd2End(t *testing.T) {
 }
 
 func BenchmarkOvernight(b *testing.B) {
-	BenchmarkEvalN15(b)
-	BenchmarkEvalN16(b)
-	BenchmarkEvalN17(b)
+	BenchmarkEvalN12(b)
+	BenchmarkEvalN13(b)
+	BenchmarkEvalN14(b)
 }
 
 // Benchmarking TrustedSeedGen
