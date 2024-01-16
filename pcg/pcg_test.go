@@ -75,10 +75,24 @@ func TestPCGEnd2End(t *testing.T) {
 	assert.Equal(t, 0, alpha.Cmp(as))
 }
 
-func BenchmarkOvernight(b *testing.B) {
+func BenchmarkOvernightMachine1(b *testing.B) {
 	benchmarkOpEval(b, 19, 2, 4, 16)
 	benchmarkOpEval(b, 20, 2, 4, 16)
+}
 
+func BenchmarkOvernightMachine2(b *testing.B) {
+	benchmarkOpEval(b, 10, 2, 4, 16)
+	benchmarkOpEval(b, 11, 2, 4, 16)
+	benchmarkOpEval(b, 12, 2, 4, 16)
+	benchmarkOpEval(b, 13, 2, 4, 16)
+	benchmarkOpEval(b, 14, 2, 4, 16)
+	benchmarkOpEval(b, 15, 2, 4, 16)
+	benchmarkOpEval(b, 16, 2, 4, 16)
+	benchmarkOpEval(b, 17, 2, 4, 16)
+	benchmarkOpEval(b, 18, 2, 4, 16)
+}
+
+func BenchmarkOvernightMachine3(b *testing.B) {
 	benchmarkOpEval(b, 10, 3, 4, 16)
 	benchmarkOpEval(b, 11, 3, 4, 16)
 	benchmarkOpEval(b, 12, 3, 4, 16)
