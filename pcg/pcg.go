@@ -46,8 +46,8 @@ func NewPCG(lambda, N, n, c, t int) (*PCG, error) {
 		n:      n,
 		c:      c,
 		t:      t,
-		dspfN:  dspf.NewDSPFFactoryWithDomain(baseDpfDomain, N),
-		dspf2N: dspf.NewDSPFFactoryWithDomain(baseDpfDoubleDomain, N+1),
+		dspfN:  dspf.NewDSPFFactory(baseDpfDomain),
+		dspf2N: dspf.NewDSPFFactory(baseDpfDoubleDomain),
 		rng:    rng,
 	}, nil
 }

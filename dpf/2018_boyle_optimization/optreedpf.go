@@ -288,6 +288,10 @@ func (d *OpTreeDPF) Eval(key dpf.Key, x *big.Int) (*big.Int, error) {
 	return partialResult, nil
 }
 
+func (d *OpTreeDPF) GetDomain() int {
+	return d.DomainBitLength
+}
+
 // CombineResults combines the results of two partial evaluations into a single result.
 // It performs simple finite field addition.
 func (d *OpTreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
@@ -329,7 +333,7 @@ func (d *OpTreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
 	initT := tkey.ID != 0 // Interpret ID as boolean
 	initS := tkey.S
 
-	res, err := d.traverse(initS, initT, tkey.CW, d.DomainBitLength, tkey.ID)
+	res, err := d.traverse(initS, initT, &tkey.CW, d.DomainBitLength, tkey.ID)
 
 	if err != nil {
 		return nil, err
@@ -352,7 +356,7 @@ func (d *OpTreeDPF) FullEvalFast(key dpf.Key) ([]*big.Int, error) {
 	initT := tkey.ID != 0 // Interpret ID as boolean
 	initS := tkey.S
 
-	res, err := d.traverseParallel(initS, initT, tkey.CW, d.DomainBitLength, tkey.ID)
+	res, err := d.traverse(initS, initT, &tkey.CW, d.DomainBitLength, tkey.ID)
 
 	if err != nil {
 		return nil, err
@@ -360,142 +364,49 @@ func (d *OpTreeDPF) FullEvalFast(key dpf.Key) ([]*big.Int, error) {
 	return res, nil
 }
 
-// traverse traverses the tree and returns the partial results.
-func (d *OpTreeDPF) traverse(s []byte, t bool, CW map[int]CorrectionWord, i int, partyID uint8) ([]*big.Int, error) {
+func (d *OpTreeDPF) traverse(s []byte, t bool, CW *map[int]CorrectionWord, i int, partyID uint8) ([]*big.Int, error) {
 	if i > 0 {
 		pos := d.DomainBitLength - i
-		// Parse correction word
-		scw := CW[pos].S
-		tcwl := CW[pos].Tl
-		tcwr := CW[pos].Tr
 
-		// Calculate tau
+		// Generate tau
 		tau := dpf.PRG(s, d.prgOutputLength)
 		if t {
-			appendedSlices := append(scw, boolToByteSlice(tcwl)...)
-			appendedSlices = append(appendedSlices, scw...)
-			appendedSlices = append(appendedSlices, boolToByteSlice(tcwr)...)
+			appendedSlices := append(append(append(make([]byte, 0, len(s)+2*len((*CW)[pos].S)), (*CW)[pos].S...), boolToByteSlice((*CW)[pos].Tl)...), (*CW)[pos].S...)
+			appendedSlices = append(appendedSlices, boolToByteSlice((*CW)[pos].Tr)...)
 			if len(appendedSlices) != len(tau) {
 				return nil, errors.New("length of appended slices does not match length of tau")
 			}
 			tau = dpf.XORBytes(tau, appendedSlices)
 		}
 
-		// Step 5: Parse tau as PRG output
+		// Parse tau as PRG output
 		sl, tl, sr, tr, err := splitPRGOutput(tau, d.Lambda)
 		if err != nil {
 			return nil, err
 		}
+
+		// Clear the parent slice to free memory
+		tau = nil
 
 		left, err := d.traverse(sl, tl, CW, i-1, partyID)
 		if err != nil {
 			return nil, err
 		}
+		defer func() { left = nil }()
+
 		right, err := d.traverse(sr, tr, CW, i-1, partyID)
 		if err != nil {
 			return nil, err
 		}
-		return append(left, right...), nil
+		defer func() { right = nil }()
 
-	} else { // i = 0
-		// Calculate partial result
+		// Combine left and right slices
+		result := append(left, right...)
+
+		return result, nil
+	} else {
 		finalSeed := new(big.Int).SetBytes(s)
-		partialResult, err := d.evalGroupCalc(finalSeed, CW[d.DomainBitLength].S, partyID, t)
-		if err != nil {
-			return nil, err
-		}
-		return []*big.Int{partialResult}, nil
-	}
-}
-
-// traverseParallel traverses the tree and returns the partial results.
-// On each few levels, it spawns a new thread for the left and right branch.
-func (d *OpTreeDPF) traverseParallel(s []byte, t bool, CW map[int]CorrectionWord, i int, partyID uint8) ([]*big.Int, error) {
-	if i > 0 {
-		depth := d.DomainBitLength - i
-		// Parse correction word
-		scw := CW[depth].S
-		tcwl := CW[depth].Tl
-		tcwr := CW[depth].Tr
-
-		// Calculate tau
-		tau := dpf.PRG(s, d.prgOutputLength)
-		if t {
-			appendedSlices := append(scw, boolToByteSlice(tcwl)...)
-			appendedSlices = append(appendedSlices, scw...)
-			appendedSlices = append(appendedSlices, boolToByteSlice(tcwr)...)
-			if len(appendedSlices) != len(tau) {
-				return nil, errors.New("length of appended slices does not match length of tau")
-			}
-			tau = dpf.XORBytes(tau, appendedSlices)
-		}
-
-		// Step 5: Parse tau as PRG output
-		sl, tl, sr, tr, err := splitPRGOutput(tau, d.Lambda)
-		if err != nil {
-			return nil, err
-		}
-
-		var left, right []*big.Int
-
-		// Function to perform traversal
-		doTraverse := func(s []byte, t bool) ([]*big.Int, error) {
-			return d.traverseParallel(s, t, CW, i-1, partyID)
-		}
-
-		// Check if a new thread should be spawned
-		if depth == -1 { // We disabled parallelization here for benchmarks. Parallelization done on DSPF level.
-			leftChan := make(chan []*big.Int)
-			rightChan := make(chan []*big.Int)
-			errChan := make(chan error)
-
-			go func() {
-				result, err := doTraverse(sl, tl)
-				if err != nil {
-					errChan <- err
-					return
-				}
-				leftChan <- result
-			}()
-
-			go func() {
-				result, err := doTraverse(sr, tr)
-				if err != nil {
-					errChan <- err
-					return
-				}
-				rightChan <- result
-			}()
-
-			for i := 0; i < 2; i++ {
-				select {
-				case l := <-leftChan:
-					left = l
-				case r := <-rightChan:
-					right = r
-				case e := <-errChan:
-					if e != nil {
-						return nil, e
-					}
-				}
-			}
-		} else {
-			left, err = doTraverse(sl, tl)
-			if err != nil {
-				return nil, err
-			}
-			right, err = doTraverse(sr, tr)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		return append(left, right...), nil
-
-	} else { // i = 0
-		// Calculate partial result
-		finalSeed := new(big.Int).SetBytes(s)
-		partialResult, err := d.evalGroupCalc(finalSeed, CW[d.DomainBitLength].S, partyID, t)
+		partialResult, err := d.evalGroupCalc(finalSeed, (*CW)[d.DomainBitLength].S, partyID, t)
 		if err != nil {
 			return nil, err
 		}

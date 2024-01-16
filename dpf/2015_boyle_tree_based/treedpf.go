@@ -308,6 +308,10 @@ func (d *TreeDPF) CombineResults(y1 *big.Int, y2 *big.Int) *big.Int {
 	return sum
 }
 
+func (d *TreeDPF) GetDomain() int {
+	return d.Domain
+}
+
 func (d *TreeDPF) FullEval(key dpf.Key) ([]*big.Int, error) {
 	return nil, errors.New("not implemented")
 }
