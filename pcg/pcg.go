@@ -364,6 +364,11 @@ func (p *PCG) EvalSeparate(seed *Seed, rand []*poly.Polynomial, div *poly.Polyno
 	if err != nil {
 		return nil, fmt.Errorf("step 2: failed to evaluate VOLE (utilde): %w", err)
 	}
+	usk := make([]*poly.Polynomial, p.c) // TODO: Can we actually do this here? Because of sk interpolation...
+	for r := 0; r < p.c; r++ {
+		usk[r] = u[r].DeepCopy()
+		usk[r].MulByConstant(seed.ski)
+	}
 
 	// 3. Process first OLE correlation (u, k) with seed / alpha = as
 	log.Println("Processing #1 OLE (alpha = as)")
@@ -399,21 +404,25 @@ func (p *PCG) EvalSeparate(seed *Seed, rand []*poly.Polynomial, div *poly.Polyno
 	delta0i := make([][]*poly.Polynomial, p.n) // delta0i[seedIndex] is nil!
 	for j := 0; j < p.n; j++ {
 		if j != seed.index { // only for counterparties
-			delta0i[j] = make([]*poly.Polynomial, 2) // 0 = forward, 1 = backward
-			forwardShareJ, err := p.evalFinalShare(utilde[j][0], rand, div)
+			delta0i[j] = make([]*poly.Polynomial, 2)
+			forwardShareJ, err := p.evalFinalShare(utilde[j][forwardDirection], rand, div)
 			if err != nil {
 				return nil, fmt.Errorf("step 5: failed to evaluate final share delta0i: %w", err)
 			}
-			delta0i[j][0] = poly.NewEmpty()
-			delta0i[j][0].Set(forwardShareJ)
+			delta0i[j][forwardDirection] = poly.NewEmpty()
+			delta0i[j][forwardDirection].Set(forwardShareJ)
 
-			backwardShareJ, err := p.evalFinalShare(utilde[j][1], rand, div)
+			backwardShareJ, err := p.evalFinalShare(utilde[j][backwardDirection], rand, div)
 			if err != nil {
 				return nil, fmt.Errorf("step 5: failed to evaluate final share delta0i: %w", err)
 			}
-			delta0i[j][1] = poly.NewEmpty()
-			delta0i[j][1].Set(backwardShareJ)
+			delta0i[j][backwardDirection] = poly.NewEmpty()
+			delta0i[j][backwardDirection].Set(backwardShareJ)
 		}
+	}
+	uskEval, err := p.evalFinalShare(usk, rand, div) // Eval usk (we count this to delta0i)
+	if err != nil {
+		return nil, fmt.Errorf("step 5: failed to evaluate final share usk: %w", err)
 	}
 
 	oprand, err := outerProductPoly(rand, rand)
@@ -431,6 +440,10 @@ func (p *PCG) EvalSeparate(seed *Seed, rand []*poly.Polynomial, div *poly.Polyno
 			}
 		}
 	}
+	ukEval, err := p.evalFinalShare2D(uk, oprand, div) // Eval uk (we count this to alphai)
+	if err != nil {
+		return nil, fmt.Errorf("step 5: failed to evaluate final share uk: %w", err)
+	}
 
 	delta1i := make([]*poly.Polynomial, p.n) // delta1i[seedIndex] is nil!
 	for j := 0; j < p.n; j++ {
@@ -441,8 +454,12 @@ func (p *PCG) EvalSeparate(seed *Seed, rand []*poly.Polynomial, div *poly.Polyno
 			}
 		}
 	}
+	uvEval, err := p.evalFinalShare2D(uv, oprand, div) // Eval uv (we count this to delta1i)
+	if err != nil {
+		return nil, fmt.Errorf("step 5: failed to evaluate final share uv: %w", err)
+	}
 
-	return NewSeparateBBSPlusTupleGenerator(u, uk, uv, seed.ski, ai, ei, si, alphai, delta1i, delta0i), nil
+	return NewSeparateBBSPlusTupleGenerator(uskEval, ukEval, uvEval, seed.ski, ai, ei, si, delta0i, alphai, delta1i), nil
 }
 
 // PickRandomPolynomials picks c random polynomials of degree N. The last polynomial is not random and always 1.

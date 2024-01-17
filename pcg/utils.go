@@ -12,6 +12,9 @@ import (
 	"sync"
 )
 
+const forwardDirection = 0
+const backwardDirection = 1
+
 // getShamirSharedRandomElement generates a t-out-of-n shamir secret sharing of a random element.
 // This function is taken from the threshold-bbs-plus-signatures repository.
 func getShamirSharedRandomElement(rng *rand.Rand, t, n int) (*bls12381.Fr, []*bls12381.Fr) {
@@ -530,22 +533,20 @@ func (p *PCG) evalVOLEwithSeedSeparate(seedDSPFKeys [][][]*DSPFKeyPair, seedInde
 	for j := 0; j < p.n; j++ {
 		if seedIndex != j {
 			utilde[j] = make([][]*poly.Polynomial, 2) // 0 is forward, 1 is backward
-			utilde[j][0] = make([]*poly.Polynomial, p.c)
-			utilde[j][1] = make([]*poly.Polynomial, p.c)
+			utilde[j][forwardDirection] = make([]*poly.Polynomial, p.c)
+			utilde[j][backwardDirection] = make([]*poly.Polynomial, p.c)
 			for r := 0; r < p.c; r++ {
-				eval0, err := p.dspfN.FullEvalFast(seedDSPFKeys[seedIndex][j][r].Key0)
+				eval0, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[seedIndex][j][r].Key0)
 				if err != nil {
 					return nil, err
 				}
-				eval0Aggregated := aggregateDSPFoutput(eval0)
-				utilde[j][0][r] = poly.NewFromFr(eval0Aggregated)
+				utilde[j][forwardDirection][r] = poly.NewFromFr(eval0)
 
-				eval1, err := p.dspfN.FullEvalFast(seedDSPFKeys[j][seedIndex][r].Key1)
+				eval1, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[j][seedIndex][r].Key1)
 				if err != nil {
 					return nil, err
 				}
-				eval1Aggregated := aggregateDSPFoutput(eval1)
-				utilde[j][1][r] = poly.NewFromFr(eval1Aggregated)
+				utilde[j][backwardDirection][r] = poly.NewFromFr(eval1)
 			}
 		}
 	}
@@ -564,22 +565,17 @@ func (p *PCG) evalOLEwithSeedSeparate(u, v []*poly.Polynomial, seedDSPFKeys [][]
 				w[j][r] = make([]*poly.Polynomial, p.c)
 				uv[r] = make([]*poly.Polynomial, p.c)
 				for s := 0; s < p.c; s++ {
-					w[j][r][s] = poly.NewEmpty()
-					eval0, err := p.dspf2N.FullEvalFast(seedDSPFKeys[seedIndex][j][r][s].Key0)
+					eval0, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[seedIndex][j][r][s].Key0)
 					if err != nil {
 						return nil, nil, err
 					}
-					eval0Aggregated := aggregateDSPFoutput(eval0)
-					eval0Poly := poly.NewFromFr(eval0Aggregated)
-					w[j][r][s].Set(eval0Poly)
+					w[j][r][s] = poly.NewFromFr(eval0)
 
-					eval1, err := p.dspf2N.FullEvalFast(seedDSPFKeys[j][seedIndex][r][s].Key1)
+					eval1, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[j][seedIndex][r][s].Key1)
 					if err != nil {
 						return nil, nil, err
 					}
-					eval1Aggregated := aggregateDSPFoutput(eval1)
-					eval1Poly := poly.NewFromFr(eval1Aggregated)
-					w[j][r][s].Add(eval1Poly)
+					w[j][r][s].Add(poly.NewFromFr(eval1))
 
 					uv[r][s], err = poly.Mul(u[r], v[s])
 					if err != nil {
