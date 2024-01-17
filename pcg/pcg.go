@@ -17,6 +17,7 @@ type PCG struct {
 	lambda int        // lambda is the security parameter used to determine the output length of the underlying PRandomG
 	N      int        // N is the domain of the PCG. For given N, the PCG is able to generate up to 2^N BBS+ tuples.
 	n      int        // n is the number of parties participating in this PCG
+	tau    int        // tau is the threshold for the signature scheme (tau-out-of-n setting)
 	c      int        // c is the first security parameter of the Module-LPN assumption
 	t      int        // t is the second security parameter of the Module-LPN assumption
 	dspfN  *dspf.DSPF // dpfN is the Distributed Sum of Point Function used to construct the PCG with domain N
@@ -26,7 +27,7 @@ type PCG struct {
 
 // NewPCG creates a new PCG with the given parameters.
 // It uses OptreeDPF as the underlying DPF.
-func NewPCG(lambda, N, n, c, t int) (*PCG, error) {
+func NewPCG(lambda, N, n, tau, c, t int) (*PCG, error) {
 	seed, _ := bytesToInt64(dpf.RandomSeed(8))
 	rng := rand.New(rand.NewSource(seed)) // TODO: Swap this out for a secure PRG
 
@@ -40,10 +41,15 @@ func NewPCG(lambda, N, n, c, t int) (*PCG, error) {
 		return nil, fmt.Errorf("failed to initialize base DPF with domain 2N: %w", err)
 	}
 
+	if tau > n {
+		return nil, fmt.Errorf("tau must be smaller or equal to n")
+	}
+
 	return &PCG{
 		lambda: lambda,
 		N:      N,
 		n:      n,
+		tau:    tau,
 		c:      c,
 		t:      t,
 		dspfN:  dspf.NewDSPFFactory(baseDpfDomain),
@@ -131,7 +137,7 @@ func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 	// Notation of the variables analogue to the notation from the formal definition of PCG
 	// 1. Generate key shares for each party
-	_, skShares := getShamirSharedRandomElement(p.rng, p.n, p.n) // TODO: determine how we want to set the threshold for the signature scheme
+	_, skShares := getShamirSharedRandomElement(p.rng, 2, 2) // for testing we always use 2 out of 2 TODO: Remove
 
 	// 2a. Initialize aOmega, eEta, and sPhi by sampling at random from N
 	aOmega := p.sampleExponents() // a
@@ -164,9 +170,13 @@ func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 	// 5. Generate seed for each party
 	seeds := make([]*Seed, p.n)
 	for i := 0; i < p.n; i++ {
+		keyIndex := i
+		if i > 1 { // TODO: Remove
+			keyIndex = 1 // We set the key index for all parties > 1 to 1, as we do not interpolate the key shares for testing purposes
+		}
 		seeds[i] = &Seed{
 			index: i,
-			ski:   skShares[i],
+			ski:   skShares[keyIndex],
 			exponents: seedExponents{
 				aOmega: aOmega[i],
 				eEta:   eEta[i],
@@ -186,8 +196,13 @@ func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 	return seeds, nil
 }
 
-// Eval evaluates the PCG for the given seed based on a c random polynomials.
-func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*BBSPlusTupleGenerator, error) {
+// EvalCombined evaluates the PCG for an n-out-of-n setting.
+// This setting has a better performance than the tau-out-of-n setting (EvalSeparate).
+func (p *PCG) EvalCombined(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*BBSPlusTupleGenerator, error) {
+	if p.tau != p.n {
+		return nil, fmt.Errorf("EvalCombined can only be used for an n-out-of-n setting")
+	}
+
 	startTimeTotal := time.Now()
 	if len(rand) != p.c {
 		return nil, fmt.Errorf("rand must hold c=%d polynomials but contains %d", p.c, len(rand))
@@ -318,8 +333,120 @@ func (p *PCG) Eval(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*
 	return NewBBSPlusTupleGenerator(seed.ski, ai, ei, si, alphai, delta0i, delta1i), nil
 }
 
+// EvalSeparate evaluates the PCG for a tau-out-of-n setting.
+// This setting has a worse performance than the n-out-of-n setting (EvalCombined).
+func (p *PCG) EvalSeparate(seed *Seed, rand []*poly.Polynomial, div *poly.Polynomial) (*SeparateBBSPlusTupleGenerator, error) {
+	if len(rand) != p.c {
+		return nil, fmt.Errorf("rand must hold c=%d polynomials but contains %d", p.c, len(rand))
+	}
+	one, _ := poly.NewSparse([]*bls12381.Fr{bls12381.NewFr().FromBytes(big.NewInt(1).Bytes())}, []*big.Int{big.NewInt(0)}) // = 1
+	if !rand[p.c-1].Equal(one) {
+		return nil, fmt.Errorf("rand must be a slice of polynomials with polynomial of the the last index rand[c-1] equal to 1")
+	}
+
+	log.Println("Evaluating PCG for ", seed.index)
+	u, err := p.constructPolys(seed.coefficients.aBeta, seed.exponents.aOmega)
+	if err != nil {
+		return nil, fmt.Errorf("step 1: failed to generate polynomials for u from aBeta and aOmega: %w", err)
+	}
+	v, err := p.constructPolys(seed.coefficients.eGamma, seed.exponents.eEta)
+	if err != nil {
+		return nil, fmt.Errorf("step 1: failed to generate polynomials for v from eGamma and eEta: %w", err)
+	}
+	k, err := p.constructPolys(seed.coefficients.sEpsilon, seed.exponents.sPhi)
+	if err != nil {
+		return nil, fmt.Errorf("step 1: failed to generate polynomials for k from sEpsilon and sPhi: %w", err)
+	}
+
+	// 2. Process VOLE (u) with seed / delta0 = ask
+	log.Println("Processing VOLE (delta0 = ask)")
+	utilde, err := p.evalVOLEwithSeedSeparate(seed.U, seed.index) // utilde[seedIndex] is nil!
+	if err != nil {
+		return nil, fmt.Errorf("step 2: failed to evaluate VOLE (utilde): %w", err)
+	}
+
+	// 3. Process first OLE correlation (u, k) with seed / alpha = as
+	log.Println("Processing #1 OLE (alpha = as)")
+	w, uk, err := p.evalOLEwithSeedSeparate(u, k, seed.C, seed.index) // w[seedIndex] is nil!
+	if err != nil {
+		return nil, fmt.Errorf("step 3: failed to evaluate OLE (w): %w", err)
+	}
+
+	// 4. Process second OLE correlation (u, v) with seed /  delta1 = ae
+	log.Println("Processing #2 OLE (delta1 = ae)")
+	m, uv, err := p.evalOLEwithSeedSeparate(u, v, seed.V, seed.index) // m[seedIndex] is nil!
+	if err != nil {
+		return nil, fmt.Errorf("step 4: failed to evaluate OLE (m): %w", err)
+	}
+
+	// 5. Calculate final shares
+	log.Println("Calculating final share polynomials")
+	ai, err := p.evalFinalShare(u, rand, div)
+	if err != nil {
+		return nil, fmt.Errorf("step 5: failed to evaluate final share ai: %w", err)
+	}
+
+	ei, err := p.evalFinalShare(v, rand, div)
+	if err != nil {
+		return nil, fmt.Errorf("step 5: failed to evaluate final share ei: %w", err)
+	}
+
+	si, err := p.evalFinalShare(k, rand, div)
+	if err != nil {
+		return nil, fmt.Errorf("step 5: failed to evaluate final share ki: %w", err)
+	}
+
+	delta0i := make([][]*poly.Polynomial, p.n) // delta0i[seedIndex] is nil!
+	for j := 0; j < p.n; j++ {
+		if j != seed.index { // only for counterparties
+			delta0i[j] = make([]*poly.Polynomial, 2) // 0 = forward, 1 = backward
+			forwardShareJ, err := p.evalFinalShare(utilde[j][0], rand, div)
+			if err != nil {
+				return nil, fmt.Errorf("step 5: failed to evaluate final share delta0i: %w", err)
+			}
+			delta0i[j][0] = poly.NewEmpty()
+			delta0i[j][0].Set(forwardShareJ)
+
+			backwardShareJ, err := p.evalFinalShare(utilde[j][1], rand, div)
+			if err != nil {
+				return nil, fmt.Errorf("step 5: failed to evaluate final share delta0i: %w", err)
+			}
+			delta0i[j][1] = poly.NewEmpty()
+			delta0i[j][1].Set(backwardShareJ)
+		}
+	}
+
+	oprand, err := outerProductPoly(rand, rand)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Println("Calculating final share polynomials 2D")
+	alphai := make([]*poly.Polynomial, p.n) // alphai[seedIndex] is nil!
+	for j := 0; j < p.n; j++ {
+		if j != seed.index { // only for counterparties
+			alphai[j], err = p.evalFinalShare2D(w[j], oprand, div)
+			if err != nil {
+				return nil, fmt.Errorf("step 5: failed to evaluate final share alphai: %w", err)
+			}
+		}
+	}
+
+	delta1i := make([]*poly.Polynomial, p.n) // delta1i[seedIndex] is nil!
+	for j := 0; j < p.n; j++ {
+		if j != seed.index { // only for counterparties
+			delta1i[j], err = p.evalFinalShare2D(m[j], oprand, div)
+			if err != nil {
+				return nil, fmt.Errorf("step 5: failed to evaluate final share delta1i: %w", err)
+			}
+		}
+	}
+
+	return NewSeparateBBSPlusTupleGenerator(u, uk, uv, seed.ski, ai, ei, si, alphai, delta1i, delta0i), nil
+}
+
 // PickRandomPolynomials picks c random polynomials of degree N. The last polynomial is not random and always 1.
-// This function is intended to be used to generate the random polynomials for calling Eval.
+// This function is intended to be used to generate the random polynomials for calling EvalCombined.
 func (p *PCG) PickRandomPolynomials() ([]*poly.Polynomial, error) {
 	numElements := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
 

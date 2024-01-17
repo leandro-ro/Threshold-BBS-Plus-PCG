@@ -354,7 +354,7 @@ func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (
 	worker := func() {
 		defer wg.Done()
 		for task := range tasks {
-			prod, err := poly.Mul(task.oprand, task.wPoly) // rand[r] and u[r] are swapped in this case
+			prod, err := poly.Mul(task.oprand, task.wPoly)
 			if err != nil {
 				results <- evalFinalShareResult{nil, err}
 				return
@@ -523,6 +523,76 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 	return w, nil
 }
 
+// evalVOLEwithSeed evaluates the VOLE correlation with the given seed.
+// Poly out is structured as: [j][direction][r], where j is the counter-parties index, direction is 0 for forward and 1 for backward and where r is in c.
+func (p *PCG) evalVOLEwithSeedSeparate(seedDSPFKeys [][][]*DSPFKeyPair, seedIndex int) ([][][]*poly.Polynomial, error) {
+	utilde := make([][][]*poly.Polynomial, p.n)
+	for j := 0; j < p.n; j++ {
+		if seedIndex != j {
+			utilde[j] = make([][]*poly.Polynomial, 2) // 0 is forward, 1 is backward
+			utilde[j][0] = make([]*poly.Polynomial, p.c)
+			utilde[j][1] = make([]*poly.Polynomial, p.c)
+			for r := 0; r < p.c; r++ {
+				eval0, err := p.dspfN.FullEvalFast(seedDSPFKeys[seedIndex][j][r].Key0)
+				if err != nil {
+					return nil, err
+				}
+				eval0Aggregated := aggregateDSPFoutput(eval0)
+				utilde[j][0][r] = poly.NewFromFr(eval0Aggregated)
+
+				eval1, err := p.dspfN.FullEvalFast(seedDSPFKeys[j][seedIndex][r].Key1)
+				if err != nil {
+					return nil, err
+				}
+				eval1Aggregated := aggregateDSPFoutput(eval1)
+				utilde[j][1][r] = poly.NewFromFr(eval1Aggregated)
+			}
+		}
+	}
+	return utilde, nil
+}
+
+// evalOLEwithSeed evaluates the OLE correlation with the given seed.
+// Poly out is structured as: [j][r][s], where j is the counter-parties index and r and s are in c.
+func (p *PCG) evalOLEwithSeedSeparate(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSPFKeyPair, seedIndex int) ([][][]*poly.Polynomial, [][]*poly.Polynomial, error) {
+	w := make([][][]*poly.Polynomial, p.n)
+	uv := make([][]*poly.Polynomial, p.c)
+	for j := 0; j < p.n; j++ {
+		if seedIndex != j { // Ony cross terms
+			w[j] = make([][]*poly.Polynomial, p.c)
+			for r := 0; r < p.c; r++ {
+				w[j][r] = make([]*poly.Polynomial, p.c)
+				uv[r] = make([]*poly.Polynomial, p.c)
+				for s := 0; s < p.c; s++ {
+					w[j][r][s] = poly.NewEmpty()
+					eval0, err := p.dspf2N.FullEvalFast(seedDSPFKeys[seedIndex][j][r][s].Key0)
+					if err != nil {
+						return nil, nil, err
+					}
+					eval0Aggregated := aggregateDSPFoutput(eval0)
+					eval0Poly := poly.NewFromFr(eval0Aggregated)
+					w[j][r][s].Set(eval0Poly)
+
+					eval1, err := p.dspf2N.FullEvalFast(seedDSPFKeys[j][seedIndex][r][s].Key1)
+					if err != nil {
+						return nil, nil, err
+					}
+					eval1Aggregated := aggregateDSPFoutput(eval1)
+					eval1Poly := poly.NewFromFr(eval1Aggregated)
+					w[j][r][s].Add(eval1Poly)
+
+					uv[r][s], err = poly.Mul(u[r], v[s])
+					if err != nil {
+						return nil, nil, err
+					}
+				}
+			}
+
+		}
+	}
+	return w, uv, nil
+}
+
 // embedVOLECorrelations embeds VOLE correlations into DSPF keys.
 func (p *PCG) embedVOLECorrelations(omega [][][]*big.Int, beta [][][]*bls12381.Fr, skShares []*bls12381.Fr) ([][][]*DSPFKeyPair, error) {
 	U := init3DSliceDspfKey(p.n, p.n, p.c)
@@ -530,7 +600,12 @@ func (p *PCG) embedVOLECorrelations(omega [][][]*big.Int, beta [][][]*bls12381.F
 		for j := 0; j < p.n; j++ {
 			if i != j {
 				for r := 0; r < p.c; r++ {
-					nonZeroElements := scalarMulFr(skShares[j], beta[i][r])
+					skShareIndex := j
+					if j > 1 {
+						skShareIndex = 1 // TODO: Remove. This is only for testing as we do not interpolate the sk shares
+					}
+
+					nonZeroElements := scalarMulFr(skShares[skShareIndex], beta[i][r])
 					key0, key1, err := p.dspfN.Gen(omega[i][r], frSliceToBigIntSlice(nonZeroElements))
 					if err != nil {
 						return nil, err

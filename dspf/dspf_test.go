@@ -73,17 +73,17 @@ func TestDSPFGenEvalTreeDPF(t *testing.T) {
 		t.Errorf("Gen returned nil keys")
 	}
 
-	// Test Eval
+	// Test EvalCombined
 	x := big.NewInt(2)
 	var ysAlice []*big.Int
 	var ysBob []*big.Int
 	ysAlice, err = dspf.Eval(keyAlice, x)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 	ysBob, err = dspf.Eval(keyBob, x)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 
 	// Test CombineSingleResult
@@ -97,15 +97,15 @@ func TestDSPFGenEvalTreeDPF(t *testing.T) {
 		t.Errorf("CombineSingleResult did not return zero")
 	}
 
-	// Test Eval with non-zero result
+	// Test EvalCombined with non-zero result
 	x = sp2
 	ysAlice, err = dspf.Eval(keyAlice, x)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 	ysBob, err = dspf.Eval(keyBob, x)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
 	if err != nil {
@@ -146,17 +146,17 @@ func TestDSPFGenEvalOpTreeDPF(t *testing.T) {
 		t.Errorf("Gen returned nil keys")
 	}
 
-	// Test Eval
+	// Test EvalCombined
 	x := big.NewInt(2)
 	var ysAlice []*big.Int
 	var ysBob []*big.Int
 	ysAlice, err = dspf.Eval(keyAlice, x)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 	ysBob, err = dspf.Eval(keyBob, x)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 
 	// Test CombineSingleResult
@@ -170,15 +170,15 @@ func TestDSPFGenEvalOpTreeDPF(t *testing.T) {
 		t.Errorf("CombineSingleResult did not return zero")
 	}
 
-	// Test Eval with non-zero result
+	// Test EvalCombined with non-zero result
 	x = sp2
 	ysAlice, err = dspf.Eval(keyAlice, x)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 	ysBob, err = dspf.Eval(keyBob, x)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
 	if err != nil {
@@ -226,12 +226,12 @@ func TestDSPFFullEvalOpTreeDPF(t *testing.T) {
 
 	ys1, err := dspf.FullEval(k1)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 
 	ys2, err := dspf.FullEval(k2)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 
 	for i := 0; i < tCount; i++ {
@@ -286,12 +286,12 @@ func TestDSPFFullEvalFastOpTreeDPF(t *testing.T) {
 
 	ys1, err := dspf.FullEvalFast(k1)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 
 	ys2, err := dspf.FullEvalFast(k2)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 
 	for i := 0; i < tCount; i++ {
@@ -346,12 +346,12 @@ func TestDSPFFullEvalFastOpTreeDPFSum(t *testing.T) {
 
 	ys1, err := dspf.FullEvalFast(k1)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 
 	ys2, err := dspf.FullEvalFast(k2)
 	if err != nil {
-		t.Errorf("Eval returned an unexpected error: %v", err)
+		t.Errorf("EvalCombined returned an unexpected error: %v", err)
 	}
 
 	ys1summed := make([]*bls12381.Fr, len(ys1[0]))

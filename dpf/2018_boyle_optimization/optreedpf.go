@@ -1,5 +1,5 @@
 // Package optreedpf provides an optimized tree-based Distributed Point Function implementation.
-// It is based on Figure 1 (Gen, Eval) & 3 (Convert) from "Function Secret Sharing: Improvements and Extensions"
+// It is based on Figure 1 (Gen, EvalCombined) & 3 (Convert) from "Function Secret Sharing: Improvements and Extensions"
 // by Elette Boyle, Niv Gilboa, and Yuval Ishai, originally published at CCS '16.
 // For this implementation the revised version of the paper from 2018 was used.
 // Link: https://eprint.iacr.org/2018/707.pdf
