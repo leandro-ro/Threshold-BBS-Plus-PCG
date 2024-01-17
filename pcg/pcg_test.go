@@ -75,7 +75,6 @@ func TestPCGCombinedEnd2End(t *testing.T) {
 	assert.Equal(t, 0, alpha.Cmp(as))
 }
 
-
 func BenchmarkOvernightMachine1(b *testing.B) {
 	benchmarkOpEval(b, 19, 2, 4, 16)
 	benchmarkOpEval(b, 20, 2, 4, 16)
@@ -103,6 +102,7 @@ func BenchmarkOvernightMachine3(b *testing.B) {
 	benchmarkOpEval(b, 16, 3, 4, 16)
 	benchmarkOpEval(b, 17, 3, 4, 16)
 	benchmarkOpEval(b, 18, 3, 4, 16)
+}
 
 func TestPCGSeparateEnd2End(t *testing.T) {
 	pcg, err := NewPCG(128, 10, 3, 2, 2, 4)
