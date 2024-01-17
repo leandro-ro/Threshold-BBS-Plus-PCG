@@ -468,21 +468,17 @@ func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedSk *bls12381.Fr, seedDS
 			if i == seedIndex {
 				for j := 0; j < p.n; j++ {
 					if i != j {
-						eval0, err := p.dspfN.FullEvalFast(seedDSPFKeys[i][j][r].Key0)
+						eval0, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[i][j][r].Key0)
 						if err != nil {
 							return nil, err
 						}
-						eval0Aggregated := aggregateDSPFoutput(eval0)
-						eval0Poly := poly.NewFromFr(eval0Aggregated)
-						ur.Add(eval0Poly)
+						ur.Add(poly.NewFromFr(eval0))
 
-						eval1, err := p.dspfN.FullEvalFast(seedDSPFKeys[j][i][r].Key1)
+						eval1, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[j][i][r].Key1)
 						if err != nil {
 							return nil, err
 						}
-						eval1Aggregated := aggregateDSPFoutput(eval1)
-						eval1Poly := poly.NewFromFr(eval1Aggregated)
-						ur.Add(eval1Poly)
+						ur.Add(poly.NewFromFr(eval1))
 					}
 				}
 			}
@@ -498,7 +494,8 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 	for r := 0; r < p.c; r++ {
 		w[r] = make([]*poly.Polynomial, p.c)
 		for s := 0; s < p.c; s++ {
-			wrs, err := poly.Mul(u[r], v[s]) // u an r are t-sparse -> t*t complexity
+			var err error
+			w[r][s], err = poly.Mul(u[r], v[s]) // u an r are t-sparse -> t*t complexity
 			if err != nil {
 				return nil, err
 			}
@@ -506,26 +503,21 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 				if i == seedIndex {
 					for j := 0; j < p.n; j++ {
 						if i != j { // Ony cross terms
-							eval0, err := p.dspf2N.FullEvalFast(seedDSPFKeys[i][j][r][s].Key0)
+							eval0, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[i][j][r][s].Key0)
 							if err != nil {
 								return nil, err
 							}
-							eval0Aggregated := aggregateDSPFoutput(eval0)
-							eval0Poly := poly.NewFromFr(eval0Aggregated)
-							wrs.Add(eval0Poly) // N
+							w[r][s].Add(poly.NewFromFr(eval0)) // N
 
-							eval1, err := p.dspf2N.FullEvalFast(seedDSPFKeys[j][i][r][s].Key1)
+							eval1, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[j][i][r][s].Key1)
 							if err != nil {
 								return nil, err
 							}
-							eval1Aggregated := aggregateDSPFoutput(eval1)
-							eval1Poly := poly.NewFromFr(eval1Aggregated)
-							wrs.Add(eval1Poly) // N
+							w[r][s].Add(poly.NewFromFr(eval1)) // N
 						}
 					}
 				}
 			}
-			w[r][s] = wrs
 		}
 	}
 	return w, nil

@@ -75,6 +75,35 @@ func TestPCGCombinedEnd2End(t *testing.T) {
 	assert.Equal(t, 0, alpha.Cmp(as))
 }
 
+
+func BenchmarkOvernightMachine1(b *testing.B) {
+	benchmarkOpEval(b, 19, 2, 4, 16)
+	benchmarkOpEval(b, 20, 2, 4, 16)
+}
+
+func BenchmarkOvernightMachine2(b *testing.B) {
+	benchmarkOpEval(b, 10, 2, 4, 16)
+	benchmarkOpEval(b, 11, 2, 4, 16)
+	benchmarkOpEval(b, 12, 2, 4, 16)
+	benchmarkOpEval(b, 13, 2, 4, 16)
+	benchmarkOpEval(b, 14, 2, 4, 16)
+	benchmarkOpEval(b, 15, 2, 4, 16)
+	benchmarkOpEval(b, 16, 2, 4, 16)
+	benchmarkOpEval(b, 17, 2, 4, 16)
+	benchmarkOpEval(b, 18, 2, 4, 16)
+}
+
+func BenchmarkOvernightMachine3(b *testing.B) {
+	benchmarkOpEval(b, 10, 3, 4, 16)
+	benchmarkOpEval(b, 11, 3, 4, 16)
+	benchmarkOpEval(b, 12, 3, 4, 16)
+	benchmarkOpEval(b, 13, 3, 4, 16)
+	benchmarkOpEval(b, 14, 3, 4, 16)
+	benchmarkOpEval(b, 15, 3, 4, 16)
+	benchmarkOpEval(b, 16, 3, 4, 16)
+	benchmarkOpEval(b, 17, 3, 4, 16)
+	benchmarkOpEval(b, 18, 3, 4, 16)
+
 func TestPCGSeparateEnd2End(t *testing.T) {
 	pcg, err := NewPCG(128, 10, 3, 2, 2, 4)
 	assert.Nil(t, err)
@@ -95,20 +124,6 @@ func TestPCGSeparateEnd2End(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, eval0)
 
-}
-
-func BenchmarkOvernight(b *testing.B) {
-	BenchmarkEvalN10(b)
-	BenchmarkEvalN11(b)
-	BenchmarkEvalN12(b)
-	BenchmarkEvalN13(b)
-	BenchmarkEvalN14(b)
-	BenchmarkEvalN15(b)
-	BenchmarkEvalN16(b)
-	BenchmarkEvalN17(b)
-	BenchmarkEvalN18(b)
-	BenchmarkEvalN19(b)
-	BenchmarkEvalN20(b)
 }
 
 // Benchmarking TrustedSeedGen
