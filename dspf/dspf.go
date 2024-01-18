@@ -2,8 +2,10 @@ package dspf
 
 import (
 	"errors"
+	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
 	"pcg-master-thesis/dpf"
+	"runtime"
 	"sync"
 )
 
@@ -14,15 +16,6 @@ type DSPF struct {
 
 // NewDSPFFactory creates a new DSPF factory with a given base DPF and domain.
 func NewDSPFFactory(baseDPF dpf.DPF) *DSPF {
-	return &DSPF{
-		baseDPF: baseDPF,
-	}
-}
-
-// NewDSPFFactoryWithDomain creates a new DSPF factory with a given base DPF and domain.
-// inputDomain sets/overwrites the input domain (= bit length of the special point) of the base DPF.
-func NewDSPFFactoryWithDomain(baseDPF dpf.DPF, inputDomain int) *DSPF {
-	baseDPF.ChangeDomain(inputDomain)
 	return &DSPF{
 		baseDPF: baseDPF,
 	}
@@ -162,4 +155,82 @@ func (d *DSPF) FullEvalFast(dspfKey Key) ([][]*big.Int, error) {
 	}
 
 	return ys, nil
+}
+
+type AggregatedResult struct {
+	ys  []*bls12381.Fr
+	mtx sync.Mutex
+}
+
+// FullEvalFastAggregated evaluates each DPF of the DSPF on all points in the domain.
+// It parallelizes the evaluation of each DPF. It aggregates the results in a single result.
+// This also uses a worker pool to parallelize the aggregation efficiently.
+func (d *DSPF) FullEvalFastAggregated(dspfKey Key) ([]*bls12381.Fr, error) {
+	expectedLen := big.NewInt(0).Exp(big.NewInt(2), big.NewInt(int64(d.baseDPF.GetDomain())), nil)
+	numWorkers := runtime.NumCPU()
+
+	aggResult := AggregatedResult{
+		ys: make([]*bls12381.Fr, expectedLen.Int64()),
+	}
+	for i := range aggResult.ys {
+		aggResult.ys[i] = bls12381.NewFr().Zero()
+	}
+
+	errCh := make(chan error, 1)
+	jobsCh := make(chan dpf.Key, len(dspfKey.DPFKeys))
+	resultsCh := make(chan []*big.Int, len(dspfKey.DPFKeys))
+	wg := sync.WaitGroup{}
+
+	// Start workers
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			for key := range jobsCh {
+				y, err := d.baseDPF.FullEvalFast(key)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				resultsCh <- y
+			}
+		}()
+	}
+
+	// Send jobs
+	for _, key := range dspfKey.DPFKeys {
+		wg.Add(1)
+		jobsCh <- key
+	}
+	close(jobsCh)
+
+	// Handle results
+	var aggError error
+	go func() {
+		for range dspfKey.DPFKeys {
+			select {
+			case y := <-resultsCh:
+				aggResult.mtx.Lock()
+				for i, bigIntVal := range y {
+					val := bls12381.NewFr().FromBytes(bigIntVal.Bytes())
+					aggResult.ys[i].Add(aggResult.ys[i], val)
+				}
+				aggResult.mtx.Unlock()
+				wg.Done()
+			case err := <-errCh:
+				if aggError == nil {
+					aggError = err
+				}
+				close(resultsCh)
+				wg.Done()
+				return
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	if aggError != nil {
+		return nil, aggError
+	}
+
+	return aggResult.ys, nil
 }

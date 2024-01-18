@@ -12,6 +12,9 @@ import (
 	"sync"
 )
 
+const forwardDirection = 0
+const backwardDirection = 1
+
 // getShamirSharedRandomElement generates a t-out-of-n shamir secret sharing of a random element.
 // This function is taken from the threshold-bbs-plus-signatures repository.
 func getShamirSharedRandomElement(rng *rand.Rand, t, n int) (*bls12381.Fr, []*bls12381.Fr) {
@@ -354,7 +357,7 @@ func (p *PCG) evalFinalShare(u, rand []*poly.Polynomial, div *poly.Polynomial) (
 	worker := func() {
 		defer wg.Done()
 		for task := range tasks {
-			prod, err := poly.Mul(task.oprand, task.wPoly) // rand[r] and u[r] are swapped in this case
+			prod, err := poly.Mul(task.oprand, task.wPoly)
 			if err != nil {
 				results <- evalFinalShareResult{nil, err}
 				return
@@ -468,21 +471,17 @@ func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedSk *bls12381.Fr, seedDS
 			if i == seedIndex {
 				for j := 0; j < p.n; j++ {
 					if i != j {
-						eval0, err := p.dspfN.FullEvalFast(seedDSPFKeys[i][j][r].Key0)
+						eval0, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[i][j][r].Key0)
 						if err != nil {
 							return nil, err
 						}
-						eval0Aggregated := aggregateDSPFoutput(eval0) // TODO: Workaround... make this more elegant
-						eval0Poly := poly.NewFromFr(eval0Aggregated)
-						ur.Add(eval0Poly)
+						ur.Add(poly.NewFromFr(eval0))
 
-						eval1, err := p.dspfN.FullEvalFast(seedDSPFKeys[j][i][r].Key1)
+						eval1, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[j][i][r].Key1)
 						if err != nil {
 							return nil, err
 						}
-						eval1Aggregated := aggregateDSPFoutput(eval1) // TODO: Workaround... make this more elegant
-						eval1Poly := poly.NewFromFr(eval1Aggregated)
-						ur.Add(eval1Poly)
+						ur.Add(poly.NewFromFr(eval1))
 					}
 				}
 			}
@@ -498,7 +497,8 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 	for r := 0; r < p.c; r++ {
 		w[r] = make([]*poly.Polynomial, p.c)
 		for s := 0; s < p.c; s++ {
-			wrs, err := poly.Mul(u[r], v[s]) // u an r are t-sparse -> t*t complexity
+			var err error
+			w[r][s], err = poly.Mul(u[r], v[s]) // u an r are t-sparse -> t*t complexity
 			if err != nil {
 				return nil, err
 			}
@@ -506,29 +506,87 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 				if i == seedIndex {
 					for j := 0; j < p.n; j++ {
 						if i != j { // Ony cross terms
-							eval0, err := p.dspf2N.FullEvalFast(seedDSPFKeys[i][j][r][s].Key0)
+							eval0, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[i][j][r][s].Key0)
 							if err != nil {
 								return nil, err
 							}
-							eval0Aggregated := aggregateDSPFoutput(eval0) // TODO: Workaround... make this more elegant
-							eval0Poly := poly.NewFromFr(eval0Aggregated)
-							wrs.Add(eval0Poly) // N
+							w[r][s].Add(poly.NewFromFr(eval0)) // N
 
-							eval1, err := p.dspf2N.FullEvalFast(seedDSPFKeys[j][i][r][s].Key1)
+							eval1, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[j][i][r][s].Key1)
 							if err != nil {
 								return nil, err
 							}
-							eval1Aggregated := aggregateDSPFoutput(eval1) // TODO: Workaround... make this more elegant
-							eval1Poly := poly.NewFromFr(eval1Aggregated)
-							wrs.Add(eval1Poly) // N
+							w[r][s].Add(poly.NewFromFr(eval1)) // N
 						}
 					}
 				}
 			}
-			w[r][s] = wrs
 		}
 	}
 	return w, nil
+}
+
+// evalVOLEwithSeed evaluates the VOLE correlation with the given seed.
+// Poly out is structured as: [j][direction][r], where j is the counter-parties index, direction is 0 for forward and 1 for backward and where r is in c.
+func (p *PCG) evalVOLEwithSeedSeparate(seedDSPFKeys [][][]*DSPFKeyPair, seedIndex int) ([][][]*poly.Polynomial, error) {
+	utilde := make([][][]*poly.Polynomial, p.n)
+	for j := 0; j < p.n; j++ {
+		if seedIndex != j {
+			utilde[j] = make([][]*poly.Polynomial, 2) // 0 is forward, 1 is backward
+			utilde[j][forwardDirection] = make([]*poly.Polynomial, p.c)
+			utilde[j][backwardDirection] = make([]*poly.Polynomial, p.c)
+			for r := 0; r < p.c; r++ {
+				eval0, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[seedIndex][j][r].Key0)
+				if err != nil {
+					return nil, err
+				}
+				utilde[j][forwardDirection][r] = poly.NewFromFr(eval0)
+
+				eval1, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[j][seedIndex][r].Key1)
+				if err != nil {
+					return nil, err
+				}
+				utilde[j][backwardDirection][r] = poly.NewFromFr(eval1)
+			}
+		}
+	}
+	return utilde, nil
+}
+
+// evalOLEwithSeed evaluates the OLE correlation with the given seed.
+// Poly out is structured as: [j][r][s], where j is the counter-parties index and r and s are in c.
+func (p *PCG) evalOLEwithSeedSeparate(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSPFKeyPair, seedIndex int) ([][][]*poly.Polynomial, [][]*poly.Polynomial, error) {
+	w := make([][][]*poly.Polynomial, p.n)
+	uv := make([][]*poly.Polynomial, p.c)
+	for j := 0; j < p.n; j++ {
+		if seedIndex != j { // Ony cross terms
+			w[j] = make([][]*poly.Polynomial, p.c)
+			for r := 0; r < p.c; r++ {
+				w[j][r] = make([]*poly.Polynomial, p.c)
+				uv[r] = make([]*poly.Polynomial, p.c)
+				for s := 0; s < p.c; s++ {
+					eval0, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[seedIndex][j][r][s].Key0)
+					if err != nil {
+						return nil, nil, err
+					}
+					w[j][r][s] = poly.NewFromFr(eval0)
+
+					eval1, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[j][seedIndex][r][s].Key1)
+					if err != nil {
+						return nil, nil, err
+					}
+					w[j][r][s].Add(poly.NewFromFr(eval1))
+
+					uv[r][s], err = poly.Mul(u[r], v[s])
+					if err != nil {
+						return nil, nil, err
+					}
+				}
+			}
+
+		}
+	}
+	return w, uv, nil
 }
 
 // embedVOLECorrelations embeds VOLE correlations into DSPF keys.
@@ -538,7 +596,12 @@ func (p *PCG) embedVOLECorrelations(omega [][][]*big.Int, beta [][][]*bls12381.F
 		for j := 0; j < p.n; j++ {
 			if i != j {
 				for r := 0; r < p.c; r++ {
-					nonZeroElements := scalarMulFr(skShares[j], beta[i][r])
+					skShareIndex := j
+					if j > 1 {
+						skShareIndex = 1 // TODO: Remove. This is only for testing as we do not interpolate the sk shares
+					}
+
+					nonZeroElements := scalarMulFr(skShares[skShareIndex], beta[i][r])
 					key0, key1, err := p.dspfN.Gen(omega[i][r], frSliceToBigIntSlice(nonZeroElements))
 					if err != nil {
 						return nil, err
