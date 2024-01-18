@@ -111,6 +111,86 @@ func BenchmarkOpEvalSeparate2outof5_N20(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 20, 2, 5, 4, 16)
 }
 
+func BenchmarkOpEvalSeparate2outof6_N10(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 10, 2, 6, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof6_N11(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 11, 2, 6, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof6_N12(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 12, 2, 6, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof6_N13(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 13, 2, 6, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof6_N14(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 14, 2, 6, 4, 16)
+}
+
+func BenchmarkOpEvalSeparate2outof7_N10(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 10, 2, 7, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof7_N11(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 11, 2, 7, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof7_N12(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 12, 2, 7, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof7_N13(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 13, 2, 7, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof7_N14(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 14, 2, 7, 4, 16)
+}
+
+func BenchmarkOpEvalSeparate2outof8_N10(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 10, 2, 8, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof8_N11(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 11, 2, 8, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof8_N12(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 12, 2, 8, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof8_N13(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 13, 2, 8, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof8_N14(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 14, 2, 8, 4, 16)
+}
+
+func BenchmarkOpEvalSeparate2outof9_N10(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 10, 2, 9, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof9_N11(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 11, 2, 9, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof9_N12(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 12, 2, 9, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof9_N13(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 13, 2, 9, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof9_N14(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 14, 2, 9, 4, 16)
+}
+
+func BenchmarkOpEvalSeparate2outof10_N10(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 10, 2, 10, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof10_N11(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 11, 2, 10, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof10_N12(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 12, 2, 10, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof10_N13(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 13, 2, 10, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof10_N14(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 14, 2, 10, 4, 16)
+}
+
 func benchmarkOpEvalSeparate(b *testing.B, N, tau, n, c, t int) {
 	log.Printf("------------------- BENCHMARK EVAL SEPARATE (tau-out-of-n PCG) --------------------")
 	log.Printf("N: %d, tau: %d, n: %d, c: %d, t: %d\n", N, tau, n, c, t)

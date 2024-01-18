@@ -92,23 +92,101 @@ func BenchmarkOpEvalCombined4outof4_N13(b *testing.B) {
 func BenchmarkOpEvalCombined4outof4_N14(b *testing.B) {
 	benchmarkOpEvalCombined(b, 14, 4, 4, 4, 16)
 }
-func BenchmarkOpEvalCombined4outof4_N15(b *testing.B) {
-	benchmarkOpEvalCombined(b, 15, 4, 4, 4, 16)
+
+func BenchmarkOpEvalCombined5outof5_N10(b *testing.B) {
+	benchmarkOpEvalCombined(b, 10, 5, 5, 4, 16)
 }
-func BenchmarkOpEvalCombined4outof4_N16(b *testing.B) {
-	benchmarkOpEvalCombined(b, 16, 4, 4, 4, 16)
+func BenchmarkOpEvalCombined5outof5_N11(b *testing.B) {
+	benchmarkOpEvalCombined(b, 11, 5, 5, 4, 16)
 }
-func BenchmarkOpEvalCombined4outof4_N17(b *testing.B) {
-	benchmarkOpEvalCombined(b, 17, 4, 4, 4, 16)
+func BenchmarkOpEvalCombined5outof5_N12(b *testing.B) {
+	benchmarkOpEvalCombined(b, 12, 5, 5, 4, 16)
 }
-func BenchmarkOpEvalCombined4outof4_N18(b *testing.B) {
-	benchmarkOpEvalCombined(b, 18, 4, 4, 4, 16)
+func BenchmarkOpEvalCombined5outof5_N13(b *testing.B) {
+	benchmarkOpEvalCombined(b, 13, 5, 5, 4, 16)
 }
-func BenchmarkOpEvalCombined4outof4_N19(b *testing.B) {
-	benchmarkOpEvalCombined(b, 19, 4, 4, 4, 16)
+func BenchmarkOpEvalCombined5outof5_N14(b *testing.B) {
+	benchmarkOpEvalCombined(b, 14, 5, 5, 4, 16)
 }
-func BenchmarkOpEvalCombined4outof4_N20(b *testing.B) {
-	benchmarkOpEvalCombined(b, 20, 4, 4, 4, 16)
+
+func BenchmarkOpEvalCombined6outof6_N10(b *testing.B) {
+	benchmarkOpEvalCombined(b, 10, 6, 6, 4, 16)
+}
+func BenchmarkOpEvalCombined6outof6_N11(b *testing.B) {
+	benchmarkOpEvalCombined(b, 11, 6, 6, 4, 16)
+}
+func BenchmarkOpEvalCombined6outof6_N12(b *testing.B) {
+	benchmarkOpEvalCombined(b, 12, 6, 6, 4, 16)
+}
+func BenchmarkOpEvalCombined6outof6_N13(b *testing.B) {
+	benchmarkOpEvalCombined(b, 13, 6, 6, 4, 16)
+}
+func BenchmarkOpEvalCombined6outof6_N14(b *testing.B) {
+	benchmarkOpEvalCombined(b, 14, 6, 6, 4, 16)
+}
+
+func BenchmarkOpEvalCombined7outof7_N10(b *testing.B) {
+	benchmarkOpEvalCombined(b, 10, 7, 7, 4, 16)
+}
+func BenchmarkOpEvalCombined7outof7_N11(b *testing.B) {
+	benchmarkOpEvalCombined(b, 11, 7, 7, 4, 16)
+}
+func BenchmarkOpEvalCombined7outof7_N12(b *testing.B) {
+	benchmarkOpEvalCombined(b, 12, 7, 7, 4, 16)
+}
+func BenchmarkOpEvalCombined7outof7_N13(b *testing.B) {
+	benchmarkOpEvalCombined(b, 13, 7, 7, 4, 16)
+}
+func BenchmarkOpEvalCombined7outof7_N14(b *testing.B) {
+	benchmarkOpEvalCombined(b, 14, 7, 7, 4, 16)
+}
+
+func BenchmarkOpEvalCombined8outof8_N10(b *testing.B) {
+	benchmarkOpEvalCombined(b, 10, 8, 8, 4, 16)
+}
+func BenchmarkOpEvalCombined8outof8_N11(b *testing.B) {
+	benchmarkOpEvalCombined(b, 11, 8, 8, 4, 16)
+}
+func BenchmarkOpEvalCombined8outof8_N12(b *testing.B) {
+	benchmarkOpEvalCombined(b, 12, 8, 8, 4, 16)
+}
+func BenchmarkOpEvalCombined8outof8_N13(b *testing.B) {
+	benchmarkOpEvalCombined(b, 13, 8, 8, 4, 16)
+}
+func BenchmarkOpEvalCombined8outof8_N14(b *testing.B) {
+	benchmarkOpEvalCombined(b, 14, 8, 8, 4, 16)
+}
+
+func BenchmarkOpEvalCombined9outof9_N10(b *testing.B) {
+	benchmarkOpEvalCombined(b, 10, 9, 9, 4, 16)
+}
+func BenchmarkOpEvalCombined9outof9_N11(b *testing.B) {
+	benchmarkOpEvalCombined(b, 11, 9, 9, 4, 16)
+}
+func BenchmarkOpEvalCombined9outof9_N12(b *testing.B) {
+	benchmarkOpEvalCombined(b, 12, 9, 9, 4, 16)
+}
+func BenchmarkOpEvalCombined9outof9_N13(b *testing.B) {
+	benchmarkOpEvalCombined(b, 13, 9, 9, 4, 16)
+}
+func BenchmarkOpEvalCombined9outof9_N14(b *testing.B) {
+	benchmarkOpEvalCombined(b, 14, 9, 9, 4, 16)
+}
+
+func BenchmarkOpEvalCombined10outof10_N10(b *testing.B) {
+	benchmarkOpEvalCombined(b, 10, 10, 10, 4, 16)
+}
+func BenchmarkOpEvalCombined10outof10_N11(b *testing.B) {
+	benchmarkOpEvalCombined(b, 11, 10, 10, 4, 16)
+}
+func BenchmarkOpEvalCombined10outof10_N12(b *testing.B) {
+	benchmarkOpEvalCombined(b, 12, 10, 10, 4, 16)
+}
+func BenchmarkOpEvalCombined10outof10_N13(b *testing.B) {
+	benchmarkOpEvalCombined(b, 13, 10, 10, 4, 16)
+}
+func BenchmarkOpEvalCombined10outof10_N14(b *testing.B) {
+	benchmarkOpEvalCombined(b, 14, 10, 10, 4, 16)
 }
 
 func benchmarkOpEvalCombined(b *testing.B, N, tau, n, c, t int) {
