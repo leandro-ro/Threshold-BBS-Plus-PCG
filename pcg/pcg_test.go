@@ -3,12 +3,11 @@ package pcg
 import (
 	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
-	"log"
 	"testing"
 )
 
 func TestPCGCombinedEnd2End(t *testing.T) {
-	pcg, err := NewPCG(128, 10, 2, 2, 2, 4)
+	pcg, err := NewPCG(128, 10, 2, 2, 2, 4) // Small lpn parameters for testing.
 	assert.Nil(t, err)
 
 	seeds, err := pcg.TrustedSeedGen()
@@ -76,7 +75,7 @@ func TestPCGCombinedEnd2End(t *testing.T) {
 }
 
 func TestPCGSeparateEnd2End(t *testing.T) {
-	pcg, err := NewPCG(128, 10, 3, 2, 2, 4) // n = 3
+	pcg, err := NewPCG(128, 10, 3, 2, 2, 4) // Small lpn parameters for testing.
 	assert.Nil(t, err)
 
 	seeds, err := pcg.TrustedSeedGen()
@@ -143,127 +142,4 @@ func TestPCGSeparateEnd2End(t *testing.T) {
 	as := bls12381.NewFr()
 	as.Mul(a, s)
 	assert.Equal(t, 0, alpha.Cmp(as))
-}
-
-func Benchmark_2_Out_Of_2(b *testing.B) {
-	benchmarkOpEvalCombined(b, 10, 2, 2, 4, 16)
-	benchmarkOpEvalCombined(b, 11, 2, 2, 4, 16)
-	benchmarkOpEvalCombined(b, 12, 2, 2, 4, 16)
-	benchmarkOpEvalCombined(b, 13, 2, 2, 4, 16)
-	benchmarkOpEvalCombined(b, 14, 2, 2, 4, 16)
-	benchmarkOpEvalCombined(b, 15, 2, 2, 4, 16)
-	benchmarkOpEvalCombined(b, 16, 2, 2, 4, 16)
-	benchmarkOpEvalCombined(b, 17, 2, 2, 4, 16)
-	benchmarkOpEvalCombined(b, 18, 2, 2, 4, 16)
-}
-
-func Benchmark_2_Out_Of_2_large(b *testing.B) {
-	benchmarkOpEvalCombined(b, 19, 2, 2, 4, 16)
-	benchmarkOpEvalCombined(b, 20, 2, 2, 4, 16)
-}
-
-func Benchmark_3_Out_Of3(b *testing.B) {
-	benchmarkOpEvalCombined(b, 10, 3, 3, 4, 16)
-	benchmarkOpEvalCombined(b, 11, 3, 3, 4, 16)
-	benchmarkOpEvalCombined(b, 12, 3, 3, 4, 16)
-	benchmarkOpEvalCombined(b, 13, 3, 3, 4, 16)
-	benchmarkOpEvalCombined(b, 14, 3, 3, 4, 16)
-	benchmarkOpEvalCombined(b, 15, 3, 3, 4, 16)
-	benchmarkOpEvalCombined(b, 16, 3, 3, 4, 16)
-	benchmarkOpEvalCombined(b, 17, 3, 3, 4, 16)
-	benchmarkOpEvalCombined(b, 18, 3, 3, 4, 16)
-}
-
-func Benchmark_2_Out_Of_3(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 10, 2, 3, 4, 16)
-	benchmarkOpEvalSeparate(b, 11, 2, 3, 4, 16)
-	benchmarkOpEvalSeparate(b, 12, 2, 3, 4, 16)
-	benchmarkOpEvalSeparate(b, 13, 2, 3, 4, 16)
-	benchmarkOpEvalSeparate(b, 14, 2, 3, 4, 16)
-	benchmarkOpEvalSeparate(b, 15, 2, 3, 4, 16)
-	benchmarkOpEvalSeparate(b, 16, 2, 3, 4, 16)
-}
-
-// Benchmarking TrustedSeedGen
-func BenchmarkTrustedSeedGenN20n2(b *testing.B) { benchmarkOpTrustedSeedGen(b, 20, 2, 4, 16) }
-func BenchmarkTrustedSeedGenN20n3(b *testing.B) { benchmarkOpTrustedSeedGen(b, 20, 3, 4, 16) }
-
-func benchmarkOpTrustedSeedGen(b *testing.B, N, n, c, t int) {
-	pcg, err := NewPCG(128, N, n, 2, c, t)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err = pcg.TrustedSeedGen()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-
-}
-
-func benchmarkOpEvalCombined(b *testing.B, N, tau, n, c, t int) {
-	log.Printf("------------------- BENCHMARK EVAL COMBINED (n-out-of-n PCG) --------------------")
-	log.Printf("N: %d, tau: %d, n: %d, c: %d, t: %d\n", N, tau, n, c, t)
-	pcg, err := NewPCG(128, N, n, 2, c, t)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	seeds, err := pcg.TrustedSeedGen()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	randPolys, err := pcg.PickRandomPolynomials()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	ring, err := pcg.GetRing(true)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err = pcg.EvalCombined(seeds[0], randPolys, ring.Div)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func benchmarkOpEvalSeparate(b *testing.B, N, tau, n, c, t int) {
-	log.Printf("------------------- BENCHMARK EVAL SEPARATE (tau-out-of-n PCG) --------------------")
-	log.Printf("N: %d, tau: %d, n: %d, c: %d, t: %d\n", N, tau, n, c, t)
-	pcg, err := NewPCG(128, N, n, tau, c, t)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	seeds, err := pcg.TrustedSeedGen()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	randPolys, err := pcg.PickRandomPolynomials()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	ring, err := pcg.GetRing(true)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err = pcg.EvalSeparate(seeds[0], randPolys, ring.Div)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
 }
