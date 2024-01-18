@@ -63,18 +63,6 @@ func BenchmarkOpEvalSeparate2outof4_N15(b *testing.B) {
 func BenchmarkOpEvalSeparate2outof4_N16(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 16, 2, 4, 4, 16)
 }
-func BenchmarkOpEvalSeparate2outof4_N17(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 17, 2, 4, 4, 16)
-}
-func BenchmarkOpEvalSeparate2outof4_N18(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 18, 2, 4, 4, 16)
-}
-func BenchmarkOpEvalSeparate2outof4_N19(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 19, 2, 4, 4, 16)
-}
-func BenchmarkOpEvalSeparate2outof4_N20(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 20, 2, 4, 4, 16)
-}
 
 // 2-out-of-5 Eval:
 func BenchmarkOpEvalSeparate2outof5_N10(b *testing.B) {
@@ -91,24 +79,6 @@ func BenchmarkOpEvalSeparate2outof5_N13(b *testing.B) {
 }
 func BenchmarkOpEvalSeparate2outof5_N14(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 14, 2, 5, 4, 16)
-}
-func BenchmarkOpEvalSeparate2outof5_N15(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 15, 2, 5, 4, 16)
-}
-func BenchmarkOpEvalSeparate2outof5_N16(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 16, 2, 5, 4, 16)
-}
-func BenchmarkOpEvalSeparate2outof5_N17(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 17, 2, 5, 4, 16)
-}
-func BenchmarkOpEvalSeparate2outof5_N18(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 18, 2, 5, 4, 16)
-}
-func BenchmarkOpEvalSeparate2outof5_N19(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 19, 2, 5, 4, 16)
-}
-func BenchmarkOpEvalSeparate2outof5_N20(b *testing.B) {
-	benchmarkOpEvalSeparate(b, 20, 2, 5, 4, 16)
 }
 
 func BenchmarkOpEvalSeparate2outof6_N10(b *testing.B) {

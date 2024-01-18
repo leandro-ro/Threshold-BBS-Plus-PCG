@@ -63,18 +63,6 @@ func BenchmarkOpEvalCombined3outof3_N15(b *testing.B) {
 func BenchmarkOpEvalCombined3outof3_N16(b *testing.B) {
 	benchmarkOpEvalCombined(b, 16, 3, 3, 4, 16)
 }
-func BenchmarkOpEvalCombined3outof3_N17(b *testing.B) {
-	benchmarkOpEvalCombined(b, 17, 3, 3, 4, 16)
-}
-func BenchmarkOpEvalCombined3outof3_N18(b *testing.B) {
-	benchmarkOpEvalCombined(b, 18, 3, 3, 4, 16)
-}
-func BenchmarkOpEvalCombined3outof3_N19(b *testing.B) {
-	benchmarkOpEvalCombined(b, 19, 3, 3, 4, 16)
-}
-func BenchmarkOpEvalCombined3outof3_N20(b *testing.B) {
-	benchmarkOpEvalCombined(b, 20, 3, 3, 4, 16)
-}
 
 // 4-out-of-4 Eval:
 func BenchmarkOpEvalCombined4outof4_N10(b *testing.B) {
