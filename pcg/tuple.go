@@ -90,7 +90,7 @@ func NewSeparateBBSPlusTupleGenerator(usk, uk, uv *poly.Polynomial, SkShare *bls
 	}
 }
 
-// GenBBSPlusTuple returns a BBSPlusTuple from a BBSPlusTupleGenerator for a given root.
+// GenBBSPlusTuple returns a BBSPlusTuple from a SeparateBBSPlusTupleGenerator for a given root.
 // signerSet is the set of signers that are participating. It must contain ownIndex.
 func (t *SeparateBBSPlusTupleGenerator) GenBBSPlusTuple(root *bls12381.Fr, signerSet []int) *BBSPlusTuple {
 	// Check if ownIndex is in signerSet

@@ -75,37 +75,8 @@ func TestPCGCombinedEnd2End(t *testing.T) {
 	assert.Equal(t, 0, alpha.Cmp(as))
 }
 
-func BenchmarkOvernightMachine1(b *testing.B) {
-	benchmarkOpEval(b, 19, 2, 4, 16)
-	benchmarkOpEval(b, 20, 2, 4, 16)
-}
-
-func BenchmarkOvernightMachine2(b *testing.B) {
-	benchmarkOpEval(b, 10, 2, 4, 16)
-	benchmarkOpEval(b, 11, 2, 4, 16)
-	benchmarkOpEval(b, 12, 2, 4, 16)
-	benchmarkOpEval(b, 13, 2, 4, 16)
-	benchmarkOpEval(b, 14, 2, 4, 16)
-	benchmarkOpEval(b, 15, 2, 4, 16)
-	benchmarkOpEval(b, 16, 2, 4, 16)
-	benchmarkOpEval(b, 17, 2, 4, 16)
-	benchmarkOpEval(b, 18, 2, 4, 16)
-}
-
-func BenchmarkOvernightMachine3(b *testing.B) {
-	benchmarkOpEval(b, 10, 3, 4, 16)
-	benchmarkOpEval(b, 11, 3, 4, 16)
-	benchmarkOpEval(b, 12, 3, 4, 16)
-	benchmarkOpEval(b, 13, 3, 4, 16)
-	benchmarkOpEval(b, 14, 3, 4, 16)
-	benchmarkOpEval(b, 15, 3, 4, 16)
-	benchmarkOpEval(b, 16, 3, 4, 16)
-	benchmarkOpEval(b, 17, 3, 4, 16)
-	benchmarkOpEval(b, 18, 3, 4, 16)
-}
-
 func TestPCGSeparateEnd2End(t *testing.T) {
-	pcg, err := NewPCG(128, 10, 3, 2, 2, 4)
+	pcg, err := NewPCG(128, 10, 3, 2, 2, 4) // n = 3
 	assert.Nil(t, err)
 
 	seeds, err := pcg.TrustedSeedGen()
@@ -174,25 +145,48 @@ func TestPCGSeparateEnd2End(t *testing.T) {
 	assert.Equal(t, 0, alpha.Cmp(as))
 }
 
-// Benchmarking TrustedSeedGen
-func BenchmarkTrustedSeedGenN20n2(b *testing.B) { benchmarkOpTrustedSeedGen(b, 20, 2, 4, 16) } // 0.8367157s
-func BenchmarkTrustedSeedGenN20n3(b *testing.B) { benchmarkOpTrustedSeedGen(b, 20, 3, 4, 16) } // 2.407096s
+func Benchmark_2_Out_Of_2(b *testing.B) {
+	benchmarkOpEvalCombined(b, 10, 2, 2, 4, 16)
+	benchmarkOpEvalCombined(b, 11, 2, 2, 4, 16)
+	benchmarkOpEvalCombined(b, 12, 2, 2, 4, 16)
+	benchmarkOpEvalCombined(b, 13, 2, 2, 4, 16)
+	benchmarkOpEvalCombined(b, 14, 2, 2, 4, 16)
+	benchmarkOpEvalCombined(b, 15, 2, 2, 4, 16)
+	benchmarkOpEvalCombined(b, 16, 2, 2, 4, 16)
+	benchmarkOpEvalCombined(b, 17, 2, 2, 4, 16)
+	benchmarkOpEvalCombined(b, 18, 2, 2, 4, 16)
+}
 
-// Benchmarking EvalCombined
-func BenchmarkEvalN7(b *testing.B)  { benchmarkOpEval(b, 7, 2, 4, 16) }
-func BenchmarkEvalN8(b *testing.B)  { benchmarkOpEval(b, 8, 2, 4, 16) }
-func BenchmarkEvalN9(b *testing.B)  { benchmarkOpEval(b, 9, 2, 4, 16) }  // 34.27199s (0.0668s per sig)
-func BenchmarkEvalN10(b *testing.B) { benchmarkOpEval(b, 10, 2, 4, 16) } // 104.4729s (0.1020s per sig)
-func BenchmarkEvalN11(b *testing.B) { benchmarkOpEval(b, 11, 2, 4, 16) } // 170.8978s (0.0834s per sig)
-func BenchmarkEvalN12(b *testing.B) { benchmarkOpEval(b, 12, 2, 4, 16) } // 336.8978s (0.0822s per sig)
-func BenchmarkEvalN13(b *testing.B) { benchmarkOpEval(b, 13, 2, 4, 16) }
-func BenchmarkEvalN14(b *testing.B) { benchmarkOpEval(b, 14, 2, 4, 16) }
-func BenchmarkEvalN15(b *testing.B) { benchmarkOpEval(b, 15, 2, 4, 16) }
-func BenchmarkEvalN16(b *testing.B) { benchmarkOpEval(b, 16, 2, 4, 16) }
-func BenchmarkEvalN17(b *testing.B) { benchmarkOpEval(b, 17, 2, 4, 16) }
-func BenchmarkEvalN18(b *testing.B) { benchmarkOpEval(b, 18, 2, 4, 16) }
-func BenchmarkEvalN19(b *testing.B) { benchmarkOpEval(b, 19, 2, 4, 16) }
-func BenchmarkEvalN20(b *testing.B) { benchmarkOpEval(b, 20, 2, 4, 16) }
+func Benchmark_2_Out_Of_2_large(b *testing.B) {
+	benchmarkOpEvalCombined(b, 19, 2, 2, 4, 16)
+	benchmarkOpEvalCombined(b, 20, 2, 2, 4, 16)
+}
+
+func Benchmark_3_Out_Of3(b *testing.B) {
+	benchmarkOpEvalCombined(b, 10, 3, 3, 4, 16)
+	benchmarkOpEvalCombined(b, 11, 3, 3, 4, 16)
+	benchmarkOpEvalCombined(b, 12, 3, 3, 4, 16)
+	benchmarkOpEvalCombined(b, 13, 3, 3, 4, 16)
+	benchmarkOpEvalCombined(b, 14, 3, 3, 4, 16)
+	benchmarkOpEvalCombined(b, 15, 3, 3, 4, 16)
+	benchmarkOpEvalCombined(b, 16, 3, 3, 4, 16)
+	benchmarkOpEvalCombined(b, 17, 3, 3, 4, 16)
+	benchmarkOpEvalCombined(b, 18, 3, 3, 4, 16)
+}
+
+func Benchmark_2_Out_Of_3(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 10, 2, 3, 4, 16)
+	benchmarkOpEvalSeparate(b, 11, 2, 3, 4, 16)
+	benchmarkOpEvalSeparate(b, 12, 2, 3, 4, 16)
+	benchmarkOpEvalSeparate(b, 13, 2, 3, 4, 16)
+	benchmarkOpEvalSeparate(b, 14, 2, 3, 4, 16)
+	benchmarkOpEvalSeparate(b, 15, 2, 3, 4, 16)
+	benchmarkOpEvalSeparate(b, 16, 2, 3, 4, 16)
+}
+
+// Benchmarking TrustedSeedGen
+func BenchmarkTrustedSeedGenN20n2(b *testing.B) { benchmarkOpTrustedSeedGen(b, 20, 2, 4, 16) }
+func BenchmarkTrustedSeedGenN20n3(b *testing.B) { benchmarkOpTrustedSeedGen(b, 20, 3, 4, 16) }
 
 func benchmarkOpTrustedSeedGen(b *testing.B, N, n, c, t int) {
 	pcg, err := NewPCG(128, N, n, 2, c, t)
@@ -210,9 +204,9 @@ func benchmarkOpTrustedSeedGen(b *testing.B, N, n, c, t int) {
 
 }
 
-func benchmarkOpEval(b *testing.B, N, n, c, t int) {
-	log.Printf("------------------- BENCHMARK EVAL --------------------")
-	log.Printf("N: %d, n: %d, c: %d, t: %d\n", N, n, c, t)
+func benchmarkOpEvalCombined(b *testing.B, N, tau, n, c, t int) {
+	log.Printf("------------------- BENCHMARK EVAL COMBINED (n-out-of-n PCG) --------------------")
+	log.Printf("N: %d, tau: %d, n: %d, c: %d, t: %d\n", N, tau, n, c, t)
 	pcg, err := NewPCG(128, N, n, 2, c, t)
 	if err != nil {
 		b.Fatal(err)
@@ -236,6 +230,38 @@ func benchmarkOpEval(b *testing.B, N, n, c, t int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err = pcg.EvalCombined(seeds[0], randPolys, ring.Div)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkOpEvalSeparate(b *testing.B, N, tau, n, c, t int) {
+	log.Printf("------------------- BENCHMARK EVAL SEPARATE (tau-out-of-n PCG) --------------------")
+	log.Printf("N: %d, tau: %d, n: %d, c: %d, t: %d\n", N, tau, n, c, t)
+	pcg, err := NewPCG(128, N, n, tau, c, t)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	seeds, err := pcg.TrustedSeedGen()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	randPolys, err := pcg.PickRandomPolynomials()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	ring, err := pcg.GetRing(true)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = pcg.EvalSeparate(seeds[0], randPolys, ring.Div)
 		if err != nil {
 			b.Fatal(err)
 		}
