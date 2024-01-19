@@ -35,7 +35,7 @@ const frN20thRootOfUnity = "4076109147917116412477021764928239477201455366950486
 const frN21thRootOfUnity = "14361536881434323440496415919546682220756906901284133287236631717500087413776"
 
 // FFT is a struct that holds the modulus and root of unity to perform FFT with these parameters.
-// The FTT code was partly taken over from https://github.com/OlegJakushkin/deepblockchains/blob/81407c2359d6680d25b507b9f4b98b42eb164978/stark/primefield.go
+// The FFT code was partly taken over from https://github.com/OlegJakushkin/deepblockchains/blob/81407c2359d6680d25b507b9f4b98b42eb164978/stark/primefield.go
 type FFT struct {
 	modulus     *big.Int
 	rootOfUnity *big.Int
