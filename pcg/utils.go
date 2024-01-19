@@ -466,24 +466,19 @@ func (p *PCG) evalVOLEwithSeed(u []*poly.Polynomial, seedSk *bls12381.Fr, seedDS
 	for r := 0; r < p.c; r++ {
 		ur := u[r].DeepCopy()    // We need unmodified u[r] later on, so we copy it
 		ur.MulByConstant(seedSk) // u[r] * sk[i]
-
-		for i := 0; i < p.n; i++ {
-			if i == seedIndex {
-				for j := 0; j < p.n; j++ {
-					if i != j {
-						eval0, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[i][j][r].Key0)
-						if err != nil {
-							return nil, err
-						}
-						ur.Add(poly.NewFromFr(eval0))
-
-						eval1, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[j][i][r].Key1)
-						if err != nil {
-							return nil, err
-						}
-						ur.Add(poly.NewFromFr(eval1))
-					}
+		for j := 0; j < p.n; j++ {
+			if seedIndex != j {
+				eval0, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[seedIndex][j][r].Key0)
+				if err != nil {
+					return nil, err
 				}
+				ur.Add(poly.NewFromFr(eval0))
+
+				eval1, err := p.dspfN.FullEvalFastAggregated(seedDSPFKeys[j][seedIndex][r].Key1)
+				if err != nil {
+					return nil, err
+				}
+				ur.Add(poly.NewFromFr(eval1))
 			}
 		}
 		utilde[r] = ur
@@ -502,23 +497,19 @@ func (p *PCG) evalOLEwithSeed(u, v []*poly.Polynomial, seedDSPFKeys [][][][]*DSP
 			if err != nil {
 				return nil, err
 			}
-			for i := 0; i < p.n; i++ {
-				if i == seedIndex {
-					for j := 0; j < p.n; j++ {
-						if i != j { // Ony cross terms
-							eval0, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[i][j][r][s].Key0)
-							if err != nil {
-								return nil, err
-							}
-							w[r][s].Add(poly.NewFromFr(eval0)) // N
-
-							eval1, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[j][i][r][s].Key1)
-							if err != nil {
-								return nil, err
-							}
-							w[r][s].Add(poly.NewFromFr(eval1)) // N
-						}
+			for j := 0; j < p.n; j++ {
+				if seedIndex != j { // Ony cross terms
+					eval0, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[seedIndex][j][r][s].Key0)
+					if err != nil {
+						return nil, err
 					}
+					w[r][s].Add(poly.NewFromFr(eval0)) // N
+
+					eval1, err := p.dspf2N.FullEvalFastAggregated(seedDSPFKeys[j][seedIndex][r][s].Key1)
+					if err != nil {
+						return nil, err
+					}
+					w[r][s].Add(poly.NewFromFr(eval1)) // N
 				}
 			}
 		}
