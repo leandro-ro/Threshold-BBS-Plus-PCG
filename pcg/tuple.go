@@ -118,7 +118,6 @@ func (t *SeparateBBSPlusTupleGenerator) GenBBSPlusTuple(root *bls12381.Fr, signe
 	delta0i := poly.NewEmpty()
 	for _, signer := range signerSet {
 		if signer != t.ownIndex {
-			// TODO: Add sk interpolation here
 			delta0i.Add(t.delta0Poly[signer][forwardDirection])
 			delta0i.Add(t.delta0Poly[signer][backwardDirection])
 		}

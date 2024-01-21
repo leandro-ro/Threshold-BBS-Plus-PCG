@@ -589,7 +589,7 @@ func (p *PCG) embedVOLECorrelations(omega [][][]*big.Int, beta [][][]*bls12381.F
 				for r := 0; r < p.c; r++ {
 					skShareIndex := j
 					if j > 1 {
-						skShareIndex = 1 // TODO: Remove. This is only for testing as we do not interpolate the sk shares
+						skShareIndex = 1 // We do this here as we do not interpolate (for testing only)
 					}
 
 					nonZeroElements := scalarMulFr(skShares[skShareIndex], beta[i][r])

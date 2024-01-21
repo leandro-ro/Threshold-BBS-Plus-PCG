@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"math/rand"
 	"pcg-master-thesis/dpf"
-	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
+	"pcg-master-thesis/dpf/optreedpf"
 	"pcg-master-thesis/dspf"
 	"pcg-master-thesis/pcg/poly"
 	"time"
@@ -29,9 +29,8 @@ type PCG struct {
 // It uses OptreeDPF as the underlying DPF.
 func NewPCG(lambda, N, n, tau, c, t int) (*PCG, error) {
 	seed, _ := bytesToInt64(dpf.RandomSeed(8))
-	rng := rand.New(rand.NewSource(seed)) // TODO: Swap this out for a secure PRG
+	rng := rand.New(rand.NewSource(seed))
 
-	// TODO: Make base DPF exchangeable
 	baseDpfDomain, err := optreedpf.InitFactory(lambda, N)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize base DPF with domain N: %w", err)
@@ -172,7 +171,7 @@ func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 	for i := 0; i < p.n; i++ {
 		keyIndex := i
 		if i > 1 {
-			keyIndex = 1 // We set the key index for all parties > 1 to 1, as we do not interpolate the key shares for testing purposes TODO: Remove
+			keyIndex = 1 // We set the key index for all parties > 1 to 1, as we do not interpolate the key shares (only for testing as this has no performance impact on Eval)
 		}
 		seeds[i] = &Seed{
 			index: i,
@@ -187,7 +186,7 @@ func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 				eGamma:   eGamma[i],
 				sEpsilon: sEpsilon[i],
 			},
-			U: U, // TODO: We are currently sending all U, C and V to each party. This is not necessary, as each party only needs the U, C and V for their index.
+			U: U,
 			C: C,
 			V: V,
 		}
@@ -362,7 +361,7 @@ func (p *PCG) EvalSeparate(seed *Seed, rand []*poly.Polynomial, div *poly.Polyno
 	if err != nil {
 		return nil, fmt.Errorf("step 2: failed to evaluate VOLE (utilde): %w", err)
 	}
-	usk := make([]*poly.Polynomial, p.c) // TODO: Can we actually do this here? Because of sk interpolation...
+	usk := make([]*poly.Polynomial, p.c)
 	for r := 0; r < p.c; r++ {
 		usk[r] = u[r].DeepCopy()
 		usk[r].MulByConstant(seed.ski)

@@ -29,7 +29,6 @@ func RandomSeed(length int) []byte {
 }
 
 // PRG generates pseudorandom bytes of given length using AES-CTR.
-// TODO: According the CPU profiler, this is a performance bottleneck for EvalCombined. Consider investigating this further.
 func PRG(seed []byte, length int) []byte {
 	// Create a new AES cipher block with the given seed
 	block, err := aes.NewCipher(seed)

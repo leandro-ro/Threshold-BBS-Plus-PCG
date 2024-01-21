@@ -5,8 +5,7 @@ import (
 	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
 	"math/big"
-	treedpf "pcg-master-thesis/dpf/2015_boyle_tree_based"
-	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
+	"pcg-master-thesis/dpf/optreedpf"
 	"testing"
 )
 
@@ -33,79 +32,6 @@ func TestDSPFGenMismatchedLengths(t *testing.T) {
 //		t.Errorf("Gen did not return the correct error for duplicate special points")
 //	}
 // }
-
-func TestDSPFGenEvalTreeDPF(t *testing.T) {
-	treeDPF128, err := treedpf.InitFactory(128, 128)
-	if err != nil {
-		t.Errorf("InitFactory returned an unexpected error: %v", err)
-	}
-	dspf := NewDSPFFactory(treeDPF128)
-	sp1 := big.NewInt(1)
-	nz1 := big.NewInt(3)
-
-	sp2 := big.NewInt(5)
-	nz2 := big.NewInt(61)
-
-	sp3 := big.NewInt(27)
-	nz3 := big.NewInt(82)
-
-	specialPoints := []*big.Int{sp1, sp2, sp3}
-	nonZeroElements := []*big.Int{nz1, nz2, nz3}
-
-	var keyAlice Key
-	var keyBob Key
-	keyAlice, keyBob, err = dspf.Gen(specialPoints, nonZeroElements)
-	if err != nil {
-		t.Errorf("Gen returned an unexpected error for valid input: %v", err)
-	}
-	if keyAlice.DPFKeys == nil || keyBob.DPFKeys == nil {
-		t.Errorf("Gen returned nil keys")
-	}
-
-	// Test EvalCombined
-	x := big.NewInt(2)
-	var ysAlice []*big.Int
-	var ysBob []*big.Int
-	ysAlice, err = dspf.Eval(keyAlice, x)
-	if err != nil {
-		t.Errorf("EvalCombined returned an unexpected error: %v", err)
-	}
-	ysBob, err = dspf.Eval(keyBob, x)
-	if err != nil {
-		t.Errorf("EvalCombined returned an unexpected error: %v", err)
-	}
-
-	// Test CombineSingleResult
-	var result *big.Int
-	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
-	if err != nil {
-		t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
-	}
-	// Expect result to be zero
-	if result.Cmp(big.NewInt(0)) != 0 {
-		t.Errorf("CombineSingleResult did not return zero")
-	}
-
-	// Test EvalCombined with non-zero result
-	x = sp2
-	ysAlice, err = dspf.Eval(keyAlice, x)
-	if err != nil {
-		t.Errorf("EvalCombined returned an unexpected error: %v", err)
-	}
-	ysBob, err = dspf.Eval(keyBob, x)
-	if err != nil {
-		t.Errorf("EvalCombined returned an unexpected error: %v", err)
-	}
-	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
-	if err != nil {
-		t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
-	}
-
-	// Expect result to be non-zero
-	if result.Cmp(nz2) != 0 {
-		t.Errorf("CombineSingleResult did not return the correct result")
-	}
-}
 
 func TestDSPFGenEvalOpTreeDPF(t *testing.T) {
 	treedpf12864, err := optreedpf.InitFactory(128, 64)

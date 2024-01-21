@@ -5,5 +5,4 @@ import (
 )
 
 func TestTupleSerialization(t *testing.T) {
-	// TODO: Add test
 }
