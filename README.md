@@ -1,4 +1,4 @@
-# Psuedorandom Correlation Generator for Threhsold BBS+
+# Psuedorandom Correlation Generator for Threshold BBS+
 
 ## File Structure
 - `dpf`: Holds interface definitions and their implementation for Distributed Point Functions (DPF).
