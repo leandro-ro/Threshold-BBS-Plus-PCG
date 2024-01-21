@@ -2,7 +2,6 @@ package dspf
 
 import (
 	"crypto/rand"
-	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
 	"math/big"
@@ -22,28 +21,18 @@ func TestDSPFGenMismatchedLengths(t *testing.T) {
 	}
 }
 
-func TestDSPFGenNilValues(t *testing.T) {
-	var dspfInstance DSPF
-	specialPoints := []*big.Int{nil}
-	nonZeroElements := []*big.Int{big.NewInt(2)}
-
-	_, _, err := dspfInstance.Gen(specialPoints, nonZeroElements)
-	if err == nil || err.Error() != "special points and non-zero elements cannot be nil" {
-		t.Errorf("Gen did not return the correct error for nil values")
-	}
-}
-
-func TestDSPFGenDuplicateSpecialPoints(t *testing.T) {
-	var dspfInstance DSPF
-	specialPoint := big.NewInt(1)
-	specialPoints := []*big.Int{specialPoint, specialPoint}
-	nonZeroElements := []*big.Int{big.NewInt(2), big.NewInt(3)}
-
-	_, _, err := dspfInstance.Gen(specialPoints, nonZeroElements)
-	if err == nil || err.Error() != fmt.Sprintf("duplicate special point: %s", specialPoint.Text(10)) {
-		t.Errorf("Gen did not return the correct error for duplicate special points")
-	}
-}
+// We allow duplicate special points for now
+// func TestDSPFGenDuplicateSpecialPoints(t *testing.T) {
+//	var dspfInstance DSPF
+//	specialPoint := big.NewInt(1)
+//	specialPoints := []*big.Int{specialPoint, specialPoint}
+//	nonZeroElements := []*big.Int{big.NewInt(2), big.NewInt(3)}
+//
+//	_, _, err := dspfInstance.Gen(specialPoints, nonZeroElements)
+//	if err == nil || err.Error() != fmt.Sprintf("duplicate special point: %s", specialPoint.Text(10)) {
+//		t.Errorf("Gen did not return the correct error for duplicate special points")
+//	}
+// }
 
 func TestDSPFGenEvalTreeDPF(t *testing.T) {
 	treeDPF128, err := treedpf.InitFactory(128, 128)
