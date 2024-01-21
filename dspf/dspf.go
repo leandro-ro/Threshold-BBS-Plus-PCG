@@ -124,6 +124,7 @@ func (d *DSPF) FullEval(dspfKey Key) ([][]*big.Int, error) {
 
 // FullEvalFast evaluates each DPF of the DSPF on all points in the domain.
 // It parallelizes the evaluation of each DPF.
+// Warning: For large Domains use FullEvalFastAggregated instead to avoid memory issues.
 func (d *DSPF) FullEvalFast(dspfKey Key) ([][]*big.Int, error) {
 	ys := make([][]*big.Int, len(dspfKey.DPFKeys))
 	errCh := make(chan error, 1)
@@ -164,7 +165,7 @@ type AggregatedResult struct {
 
 // FullEvalFastAggregated evaluates each DPF of the DSPF on all points in the domain.
 // It parallelizes the evaluation of each DPF. It aggregates the results in a single result.
-// This also uses a worker pool to parallelize the aggregation efficiently.
+// This also uses a worker pool to parallelize the aggregation efficiently in oder to avoid memory issues.
 func (d *DSPF) FullEvalFastAggregated(dspfKey Key) ([]*bls12381.Fr, error) {
 	expectedLen := big.NewInt(0).Exp(big.NewInt(2), big.NewInt(int64(d.baseDPF.GetDomain())), nil)
 	numWorkers := runtime.NumCPU()
