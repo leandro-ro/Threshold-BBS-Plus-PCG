@@ -539,7 +539,7 @@ func benchmarkOpTreeDSPFFullEvalFast(b *testing.B, lambda, domain, t int) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := dspf.FullEvalFast(k1)
+		_, err := dspf.FullEvalFastAggregated(k1)
 		if err != nil {
 			b.Fatal(err)
 		}
