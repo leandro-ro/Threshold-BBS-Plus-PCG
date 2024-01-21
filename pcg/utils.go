@@ -5,7 +5,6 @@ import (
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
-	"math/rand"
 	"pcg-master-thesis/pcg/poly"
 	"runtime"
 	"sort"
@@ -14,46 +13,6 @@ import (
 
 const forwardDirection = 0
 const backwardDirection = 1
-
-// getShamirSharedRandomElement generates a t-out-of-n shamir secret sharing of a random element.
-// This function is taken from the threshold-bbs-plus-signatures repository.
-func getShamirSharedRandomElement(rng *rand.Rand, t, n int) (*bls12381.Fr, []*bls12381.Fr) {
-	// Generate the secret key element
-	secretKeyElement := bls12381.NewFr()
-	_, err := secretKeyElement.Rand(rng)
-	if err != nil {
-		panic(err)
-	}
-
-	// Shamir Coefficients
-	coefficients := make([]*bls12381.Fr, t-1)
-	for i := 0; i < t-1; i++ {
-		coefficients[i] = bls12381.NewFr()
-		_, err := coefficients[i].Rand(rng)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	// Shares
-	shares := make([]*bls12381.Fr, n)
-	for i := 0; i < n; i++ {
-		share := bls12381.NewFr()
-		share.Set(secretKeyElement) // Share initialized with secret key element
-
-		incrExponentiation := bls12381.NewFr().One()
-
-		for j := 0; j < t-1; j++ {
-			incrExponentiation.Mul(incrExponentiation, uint64ToFr(uint64(i+1)))
-			tmp := bls12381.NewFr().Set(coefficients[j])
-			tmp.Mul(tmp, incrExponentiation)
-			share.Add(share, tmp)
-		}
-
-		shares[i] = share
-	}
-	return secretKeyElement, shares
-}
 
 // uint64ToFr converts an uint64 into a bls12381.Fr.
 // This function is taken from the threshold-bbs-plus-signatures repository.

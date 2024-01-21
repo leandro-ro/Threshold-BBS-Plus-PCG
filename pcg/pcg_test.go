@@ -110,7 +110,7 @@ func TestPCGSeparateEnd2End(t *testing.T) {
 	sk.Add(tuple0.SkShare, tuple1.SkShare)
 
 	seedSk := bls12381.NewFr()
-	seedSk.Add(seeds[0].ski, seeds[1].ski)
+	seedSk.Add(seeds[signerSet[0]].ski, seeds[1].ski)
 	assert.Equal(t, 0, sk.Cmp(seedSk))
 
 	a := bls12381.NewFr() // Sum up a0 and a1

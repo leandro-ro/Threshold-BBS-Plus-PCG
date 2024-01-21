@@ -9,6 +9,7 @@ import (
 	"pcg-master-thesis/dpf"
 	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
 	"pcg-master-thesis/dspf"
+	"pcg-master-thesis/pcg/frkey"
 	"pcg-master-thesis/pcg/poly"
 	"time"
 )
@@ -137,7 +138,7 @@ func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 	// Notation of the variables analogue to the notation from the formal definition of PCG
 	// 1. Generate key shares for each party
-	_, skShares := getShamirSharedRandomElement(p.rng, 2, 2) // for testing, we always use 2 out of 2, as we do not interpolate the key shares
+	_, skShares := frkey.GetShamirSharedRandomElement(p.rng, p.tau, p.n)
 
 	// 2a. Initialize aOmega, eEta, and sPhi by sampling at random from N
 	aOmega := p.sampleExponents() // a
@@ -170,13 +171,9 @@ func (p *PCG) TrustedSeedGen() ([]*Seed, error) {
 	// 5. Generate seed for each party
 	seeds := make([]*Seed, p.n)
 	for i := 0; i < p.n; i++ {
-		keyIndex := i
-		if i > 1 {
-			keyIndex = 1 // We set the key index for all parties > 1 to 1, as we do not interpolate the key shares for testing purposes TODO: Remove
-		}
 		seeds[i] = &Seed{
 			index: i,
-			ski:   skShares[keyIndex],
+			ski:   skShares[i],
 			exponents: seedExponents{
 				aOmega: aOmega[i],
 				eEta:   eEta[i],
