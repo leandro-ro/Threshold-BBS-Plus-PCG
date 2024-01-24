@@ -353,33 +353,30 @@ func (p *Polynomial) GetCoefficient(i int) (*bls12381.Fr, error) {
 	}
 }
 
-// Evaluate uses Horner's method to evaluate the polynomial at a given value of x.
-// The function decides whether to evaluate the polynomial sequentially or in parallel depending on the number of Coefficients.
+// Evaluate decides whether to evaluate the polynomial sequentially or in parallel based on the number of coefficients.
 func (p *Polynomial) Evaluate(x *bls12381.Fr) *bls12381.Fr {
 	numCoefficients := len(p.Coefficients)
 	if numCoefficients < 1024 {
 		return p.evaluateSequential(x)
-	} else {
-		return p.evaluateParallel(x)
 	}
+	return p.evaluateParallel(x)
 }
 
 // evaluateSequential evaluates the polynomial at a given value of x using Horner's method.
 func (p *Polynomial) evaluateSequential(x *bls12381.Fr) *bls12381.Fr {
-	result := bls12381.NewFr().Zero() // Initialize result as zero in the field Fr
+	result := bls12381.NewFr().Zero()
 
 	degree, err := p.Degree()
 	if err != nil {
-		return result // Return zero if polynomial is empty
+		// Propagate the error or handle it as needed
+		panic(err) // Example error handling
 	}
 
 	for i := degree; i >= 0; i-- {
-		result.Mul(result, x) // Multiply result by x
-
+		result.Mul(result, x)
 		if coeff, ok := p.Coefficients[i]; ok {
-			result.Add(result, coeff) // Add the coefficient
+			result.Add(result, coeff)
 		}
-		// If coefficient for this exponent does not exist, it's implicitly zero and can be skipped
 	}
 
 	return result
@@ -394,6 +391,7 @@ func (p *Polynomial) evaluateParallel(x *bls12381.Fr) *bls12381.Fr {
 
 	var wg sync.WaitGroup
 	results := make([]*bls12381.Fr, numCores)
+	xPowers := precomputeXPowers(x, chunkSize, numCores)
 
 	for i := 0; i < numCores; i++ {
 		start := i * chunkSize
@@ -413,18 +411,40 @@ func (p *Polynomial) evaluateParallel(x *bls12381.Fr) *bls12381.Fr {
 
 	// Combine results
 	finalResult := bls12381.NewFr().Zero()
-	xPower := bls12381.NewFr().One()
 	for i := 0; i < numCores; i++ {
 		temp := bls12381.NewFr()
-		temp.Mul(results[i], xPower)
+		temp.Mul(results[i], xPowers[i])
 		finalResult.Add(finalResult, temp)
-		// Update xPower for the next chunk
-		for j := 0; j < chunkSize; j++ {
-			xPower.Mul(xPower, x)
-		}
 	}
 
 	return finalResult
+}
+
+// parallelEvaluateChunk evaluates a chunk of the polynomial using Horner's method.
+func parallelEvaluateChunk(p *Polynomial, x *bls12381.Fr, start, end int) *bls12381.Fr {
+	result := bls12381.NewFr().Zero()
+	for i := end - 1; i >= start; i-- {
+		result.Mul(result, x)
+		if coeff, ok := p.Coefficients[i]; ok {
+			result.Add(result, coeff)
+		}
+	}
+	return result
+}
+
+// precomputeXPowers precomputes the powers of x needed for each chunk in the parallel evaluation.
+func precomputeXPowers(x *bls12381.Fr, chunkSize, numChunks int) []*bls12381.Fr {
+	xPowers := make([]*bls12381.Fr, numChunks)
+	xPowers[0] = bls12381.NewFr().One()
+	if numChunks > 1 {
+		xPowerChunk := bls12381.NewFr()
+		xPowerChunk.Exp(x, big.NewInt(int64(chunkSize)))
+		for i := 1; i < numChunks; i++ {
+			xPowers[i] = bls12381.NewFr()
+			xPowers[i].Mul(xPowers[i-1], xPowerChunk)
+		}
+	}
+	return xPowers
 }
 
 // Mod returns the remainder of the polynomial divided by another polynomial.
@@ -613,18 +633,6 @@ func polyAsCoefficientsBigInt(p *Polynomial) []*big.Int {
 	}
 
 	return coefficients
-}
-
-// parallelEvaluateChunk evaluates a chunk of the polynomial using Horner's method.
-func parallelEvaluateChunk(p *Polynomial, x *bls12381.Fr, start, end int) *bls12381.Fr {
-	result := bls12381.NewFr().Zero()
-	for i := end - 1; i >= start; i-- {
-		result.Mul(result, x)
-		if coeff, ok := p.Coefficients[i]; ok {
-			result.Add(result, coeff)
-		}
-	}
-	return result
 }
 
 // extendSliceWithZeros extends a slice of *big.Int to match the length of another slice.
