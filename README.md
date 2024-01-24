@@ -15,12 +15,13 @@
     - `dspf_util.go`
 - `pcg`
     - `bench`
-        - `eval_combined_test.go`
-        - `eval_separate_test.go`
+        - `derive_tuple_test.go`: Holds benchmarks for the tuple derivation.
+        - `eval_combined_test.go`: Holds benchmarks for the PCG Evaluation of n-out-of-n shares.
+        - `eval_separate_test.go`: Holds benchmarks for the PCG Evaluation of tau-out-of-n shares.
     - `poly`: Implements efficient polynomial operations via maps.
         - `fft.go`: Implements Fast Fourier Transform (FFT) for high-degree polynomial multiplication.
         - `poly.go`
-        - `poly_test.go`:
+        - `poly_test.go`
     - `pcg.go`: Implements the PCG. Also provides and optimized PCG Eval for n-out-of-n case.
     - `pcg_test.go`: Holds the end-to-end tests for the PCG Evaluation.
     - `seed.go`
