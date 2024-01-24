@@ -8,6 +8,8 @@ import (
 	"math"
 	"math/big"
 	"math/rand"
+	"runtime"
+	"sync"
 )
 
 // Polynomial represents a polynomial in the form of a map: exponent -> coefficient.
@@ -351,8 +353,56 @@ func (p *Polynomial) GetCoefficient(i int) (*bls12381.Fr, error) {
 	}
 }
 
-// Evaluate evaluates the polynomial at the given point x.
+// Evaluate evaluates the polynomial at the given point x in parallel.
 func (p *Polynomial) Evaluate(x *bls12381.Fr) *bls12381.Fr {
+	numCoefficients := len(p.Coefficients)
+	if numCoefficients < 1024 {
+		return p.evaluateSequential(x)
+	}
+
+	numCores := runtime.NumCPU()
+	chunkSize := (numCoefficients + numCores - 1) / numCores
+
+	var wg sync.WaitGroup
+	results := make([]*bls12381.Fr, numCores)
+
+	for i := 0; i < numCores; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if end > numCoefficients {
+			end = numCoefficients
+		}
+
+		results[i] = bls12381.NewFr()
+		results[i].Zero()
+
+		wg.Add(1)
+		go func(result *bls12381.Fr, start, end int) {
+			defer wg.Done()
+			for j := start; j < end; j++ {
+				if coeff, ok := p.Coefficients[j]; ok {
+					term := bls12381.NewFr()
+					term.Exp(x, big.NewInt(int64(j)))
+					term.Mul(term, coeff)
+					result.Add(result, term)
+				}
+			}
+		}(results[i], start, end)
+	}
+
+	wg.Wait()
+
+	finalResult := bls12381.NewFr()
+	finalResult.Zero()
+	for _, result := range results {
+		finalResult.Add(finalResult, result)
+	}
+
+	return finalResult
+}
+
+// evaluateSequential handles the polynomial evaluation in a sequential manner.
+func (p *Polynomial) evaluateSequential(x *bls12381.Fr) *bls12381.Fr {
 	result := bls12381.NewFr()
 	result.Zero()
 

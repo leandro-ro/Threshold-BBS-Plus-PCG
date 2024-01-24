@@ -225,6 +225,16 @@ func TestEvaluate(t *testing.T) {
 	assert.Equal(t, expectedResult, resultc)
 }
 
+func TestEvaluateLarge(t *testing.T) {
+	poly := NewFromFr(randomFrSlice(2048))
+	x := bls12381.NewFr().FromBytes(big.NewInt(14).Bytes())
+
+	resulta := poly.evaluateSequential(x)
+	resultb := poly.Evaluate(x) // should use parallel evaluation
+
+	assert.True(t, resulta.Equal(resultb))
+}
+
 func TestSeparateMul(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)
