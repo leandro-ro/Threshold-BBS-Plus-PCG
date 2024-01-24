@@ -230,9 +230,12 @@ func TestEvaluateLarge(t *testing.T) {
 	x := bls12381.NewFr().FromBytes(big.NewInt(14).Bytes())
 
 	resulta := poly.evaluateSequential(x)
-	resultb := poly.Evaluate(x) // should use parallel evaluation
+	resultb := poly.Evaluate(x)
 
 	assert.True(t, resulta.Equal(resultb))
+
+	resultd := poly.evaluateParallel(x)
+	assert.True(t, resulta.Equal(resultd))
 }
 
 func TestSeparateMul(t *testing.T) {
