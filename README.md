@@ -55,10 +55,10 @@ go test -bench=. ./pcg/bench
 ```
 For more granular benchmarking, such as assessing the performance for a specific subset of parameters, you can specify which benchmarks to run. For example, to benchmark the 2-out-of-3 case for all N, execute:
 ```bash
-go test -bench=BenchmarkOpEvalSeparate2outof3_N ./pcg/bench -timeout
+go test -bench=BenchmarkOpEvalSeparate2outof3_N ./pcg/bench
 ```
 or to benchmark the 10-out-of-10 case for a specific N=15, execute:
 ```bash
 go test -bench=BenchmarkOpEvalCombined10outof10_N15 ./pcg/bench
 ```
-consider to set the `--timeout` flag, as most benchmarks require more than 11 minutes which is the standard timeout for `go test`.
+consider to set the `-timeout` flag, as most benchmarks require more than 11 minutes which is the standard timeout for `go test`.
