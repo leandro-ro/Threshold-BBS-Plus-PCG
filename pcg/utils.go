@@ -457,6 +457,10 @@ func (p *PCG) evalFinalShare2D(w [][]*poly.Polynomial, oprand []*poly.Polynomial
 		}
 	}
 
+	alphai, err := alphai.Mod(div)
+	if err != nil {
+		return nil, err
+	}
 	return alphai, nil
 }
 

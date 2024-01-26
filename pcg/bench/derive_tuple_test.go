@@ -61,13 +61,9 @@ func benchmarkDeriveTuple(b *testing.B, N int) {
 	pow2N := big.NewInt(0)
 	pow2N.Exp(big.NewInt(2), big.NewInt(int64(N)), nil)
 
-	cTimesPow2N := big.NewInt(0)
-	cTimesPow2N.Mul(big.NewInt(int64(c)), pow2N)
-
 	// We can use random polynomials here, since we are only interested in the runtime of the tuple generation.
-	alphaPoly := randomPoly(cTimesPow2N)
-	delta1Poly := randomPoly(cTimesPow2N)
-
+	alphaPoly := randomPoly(pow2N)
+	delta1Poly := randomPoly(pow2N)
 	delta0Poly := randomPoly(pow2N)
 	aPoly := randomPoly(pow2N)
 	ePoly := randomPoly(pow2N)
