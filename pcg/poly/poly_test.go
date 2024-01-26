@@ -453,6 +453,30 @@ func BenchmarkMulFFTN18(b *testing.B) { benchmarkMulFFT(b, 262144) }
 func BenchmarkMulFFTN19(b *testing.B) { benchmarkMulFFT(b, 524288) }
 func BenchmarkMulFFTN20(b *testing.B) { benchmarkMulFFT(b, 1048576) }
 
+func BenchmarkEvaluateN10c1(b *testing.B) { benchmarkEvaluation(b, 1024) }
+func BenchmarkEvaluateN11c1(b *testing.B) { benchmarkEvaluation(b, 2048) }
+func BenchmarkEvaluateN12c1(b *testing.B) { benchmarkEvaluation(b, 4096) }
+func BenchmarkEvaluateN13c1(b *testing.B) { benchmarkEvaluation(b, 8192) }
+func BenchmarkEvaluateN14c1(b *testing.B) { benchmarkEvaluation(b, 16384) }
+func BenchmarkEvaluateN15c1(b *testing.B) { benchmarkEvaluation(b, 32768) }
+func BenchmarkEvaluateN16c1(b *testing.B) { benchmarkEvaluation(b, 65536) }
+func BenchmarkEvaluateN17c1(b *testing.B) { benchmarkEvaluation(b, 131072) }
+func BenchmarkEvaluateN18c1(b *testing.B) { benchmarkEvaluation(b, 262144) }
+func BenchmarkEvaluateN19c1(b *testing.B) { benchmarkEvaluation(b, 524288) }
+func BenchmarkEvaluateN20c1(b *testing.B) { benchmarkEvaluation(b, 1048576) }
+
+func BenchmarkEvaluateN10c4(b *testing.B) { benchmarkEvaluation(b, 1024*4) }
+func BenchmarkEvaluateN11c4(b *testing.B) { benchmarkEvaluation(b, 2048*4) }
+func BenchmarkEvaluateN12c4(b *testing.B) { benchmarkEvaluation(b, 4096*4) }
+func BenchmarkEvaluateN13c4(b *testing.B) { benchmarkEvaluation(b, 8192*4) }
+func BenchmarkEvaluateN14c4(b *testing.B) { benchmarkEvaluation(b, 16384*4) }
+func BenchmarkEvaluateN15c4(b *testing.B) { benchmarkEvaluation(b, 32768*4) }
+func BenchmarkEvaluateN16c4(b *testing.B) { benchmarkEvaluation(b, 65536*4) }
+func BenchmarkEvaluateN17c4(b *testing.B) { benchmarkEvaluation(b, 131072*4) }
+func BenchmarkEvaluateN18c4(b *testing.B) { benchmarkEvaluation(b, 262144*4) }
+func BenchmarkEvaluateN19c4(b *testing.B) { benchmarkEvaluation(b, 524288*4) }
+func BenchmarkEvaluateN20c4(b *testing.B) { benchmarkEvaluation(b, 1048576*4) }
+
 func BenchmarkSparseN20T16(b *testing.B)  { benchmarkMulSparse(b, 1048576, 16) }
 func BenchmarkSparseN21T256(b *testing.B) { benchmarkMulSparse(b, 2097152, 256) }
 
@@ -540,6 +564,22 @@ func benchmarkOptimizedModCyclotomic(b *testing.B, polyDegree, divisorDegree int
 		if err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+func benchmarkEvaluation(b *testing.B, n int) {
+	slice1 := randomFrSlice(n)
+	poly1 := NewFromFr(slice1)
+
+	rng := rand.New(rand.NewSource(rand.Int63()))
+	point, err := bls12381.NewFr().Rand(rng)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		poly1.Evaluate(point)
 	}
 }
 
