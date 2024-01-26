@@ -5,7 +5,7 @@ import (
 	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
 	"math/big"
-	"pcg-master-thesis/dpf/optreedpf"
+	"pcg-bbs-plus/dpf/optreedpf"
 	"testing"
 )
 

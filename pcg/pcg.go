@@ -6,10 +6,10 @@ import (
 	"log"
 	"math/big"
 	"math/rand"
-	"pcg-master-thesis/dpf"
-	"pcg-master-thesis/dpf/optreedpf"
-	"pcg-master-thesis/dspf"
-	"pcg-master-thesis/pcg/poly"
+	"pcg-bbs-plus/dpf"
+	"pcg-bbs-plus/dpf/optreedpf"
+	"pcg-bbs-plus/dspf"
+	"pcg-bbs-plus/pcg/poly"
 	"time"
 )
 

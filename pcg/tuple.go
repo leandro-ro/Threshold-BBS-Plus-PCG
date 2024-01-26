@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	bls12381 "github.com/kilic/bls12-381"
-	"pcg-master-thesis/pcg/poly"
+	"pcg-bbs-plus/pcg/poly"
 )
 
 // BBSPlusTupleGenerator holds the polynomials from which pre-computed BBS+ signatures can be derived.

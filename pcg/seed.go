@@ -4,7 +4,7 @@ import (
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
-	"pcg-master-thesis/dspf"
+	"pcg-bbs-plus/dspf"
 )
 
 type seedExponents struct {

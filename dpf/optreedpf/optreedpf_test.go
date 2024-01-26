@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"github.com/stretchr/testify/assert"
 	"math/big"
-	"pcg-master-thesis/dpf/optreedpf"
+	"pcg-bbs-plus/dpf/optreedpf"
 
 	"testing"
 )

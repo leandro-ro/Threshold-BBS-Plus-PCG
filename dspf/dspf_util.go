@@ -2,8 +2,8 @@ package dspf
 
 import (
 	"errors"
-	"pcg-master-thesis/dpf"
-	"pcg-master-thesis/dpf/optreedpf"
+	"pcg-bbs-plus/dpf"
+	"pcg-bbs-plus/dpf/optreedpf"
 )
 
 // CreateKeyFromTypeID is a helper function that instantiates a DPF key based on the typeID.

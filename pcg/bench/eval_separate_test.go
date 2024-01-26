@@ -2,7 +2,7 @@ package bench
 
 import (
 	"log"
-	"pcg-master-thesis/pcg"
+	"pcg-bbs-plus/pcg"
 	"testing"
 )
 

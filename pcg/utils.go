@@ -6,7 +6,7 @@ import (
 	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
 	"math/rand"
-	"pcg-master-thesis/pcg/poly"
+	"pcg-bbs-plus/pcg/poly"
 	"runtime"
 	"sort"
 	"sync"

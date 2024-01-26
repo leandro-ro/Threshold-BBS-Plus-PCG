@@ -4,7 +4,7 @@ import (
 	"errors"
 	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
-	"pcg-master-thesis/dpf"
+	"pcg-bbs-plus/dpf"
 	"runtime"
 	"sync"
 )
