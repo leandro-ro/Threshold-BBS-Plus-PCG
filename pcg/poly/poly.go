@@ -357,6 +357,9 @@ func (p *Polynomial) GetCoefficient(i int) (*bls12381.Fr, error) {
 // Both methods use Horner's method.
 func (p *Polynomial) Evaluate(x *bls12381.Fr) *bls12381.Fr {
 	numCoefficients := len(p.Coefficients)
+	if numCoefficients == 0 {
+		return bls12381.NewFr().Zero()
+	}
 	if numCoefficients < 1024 {
 		return p.evaluateSequential(x)
 	}
