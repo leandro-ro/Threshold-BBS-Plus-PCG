@@ -2,7 +2,7 @@ package bench
 
 import (
 	"log"
-	"pcg-master-thesis/pcg"
+	"pcg-bbs-plus/pcg"
 	"testing"
 )
 
@@ -63,6 +63,9 @@ func BenchmarkOpEvalSeparate2outof4_N15(b *testing.B) {
 func BenchmarkOpEvalSeparate2outof4_N16(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 16, 2, 4, 4, 16)
 }
+func BenchmarkOpEvalSeparate2outof4_N17(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 17, 2, 4, 4, 16)
+}
 
 // 2-out-of-5 Eval:
 func BenchmarkOpEvalSeparate2outof5_N10(b *testing.B) {
@@ -83,6 +86,12 @@ func BenchmarkOpEvalSeparate2outof5_N14(b *testing.B) {
 func BenchmarkOpEvalSeparate2outof5_N15(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 15, 2, 5, 4, 16)
 }
+func BenchmarkOpEvalSeparate2outof5_N16(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 16, 2, 5, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof5_N17(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 17, 2, 5, 4, 16)
+}
 
 func BenchmarkOpEvalSeparate2outof6_N10(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 10, 2, 6, 4, 16)
@@ -101,6 +110,12 @@ func BenchmarkOpEvalSeparate2outof6_N14(b *testing.B) {
 }
 func BenchmarkOpEvalSeparate2outof6_N15(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 15, 2, 6, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof6_N16(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 16, 2, 6, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof6_N17(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 17, 2, 6, 4, 16)
 }
 
 func BenchmarkOpEvalSeparate2outof7_N10(b *testing.B) {
@@ -121,6 +136,12 @@ func BenchmarkOpEvalSeparate2outof7_N14(b *testing.B) {
 func BenchmarkOpEvalSeparate2outof7_N15(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 15, 2, 7, 4, 16)
 }
+func BenchmarkOpEvalSeparate2outof7_N16(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 16, 2, 7, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof7_N17(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 17, 2, 7, 4, 16)
+}
 
 func BenchmarkOpEvalSeparate2outof8_N10(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 10, 2, 8, 4, 16)
@@ -139,6 +160,12 @@ func BenchmarkOpEvalSeparate2outof8_N14(b *testing.B) {
 }
 func BenchmarkOpEvalSeparate2outof8_N15(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 15, 2, 8, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof8_N16(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 16, 2, 8, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof8_N17(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 17, 2, 8, 4, 16)
 }
 
 func BenchmarkOpEvalSeparate2outof9_N10(b *testing.B) {
@@ -159,6 +186,12 @@ func BenchmarkOpEvalSeparate2outof9_N14(b *testing.B) {
 func BenchmarkOpEvalSeparate2outof9_N15(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 15, 2, 9, 4, 16)
 }
+func BenchmarkOpEvalSeparate2outof9_N16(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 16, 2, 9, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof9_N17(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 17, 2, 9, 4, 16)
+}
 
 func BenchmarkOpEvalSeparate2outof10_N10(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 10, 2, 10, 4, 16)
@@ -177,6 +210,12 @@ func BenchmarkOpEvalSeparate2outof10_N14(b *testing.B) {
 }
 func BenchmarkOpEvalSeparate2outof10_N15(b *testing.B) {
 	benchmarkOpEvalSeparate(b, 15, 2, 10, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof10_N16(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 16, 2, 10, 4, 16)
+}
+func BenchmarkOpEvalSeparate2outof10_N17(b *testing.B) {
+	benchmarkOpEvalSeparate(b, 17, 2, 10, 4, 16)
 }
 
 func benchmarkOpEvalSeparate(b *testing.B, N, tau, n, c, t int) {

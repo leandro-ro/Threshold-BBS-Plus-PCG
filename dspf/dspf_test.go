@@ -2,12 +2,10 @@ package dspf
 
 import (
 	"crypto/rand"
-	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
 	"math/big"
-	treedpf "pcg-master-thesis/dpf/2015_boyle_tree_based"
-	optreedpf "pcg-master-thesis/dpf/2018_boyle_optimization"
+	"pcg-bbs-plus/dpf/optreedpf"
 	"testing"
 )
 
@@ -22,101 +20,18 @@ func TestDSPFGenMismatchedLengths(t *testing.T) {
 	}
 }
 
-func TestDSPFGenNilValues(t *testing.T) {
-	var dspfInstance DSPF
-	specialPoints := []*big.Int{nil}
-	nonZeroElements := []*big.Int{big.NewInt(2)}
-
-	_, _, err := dspfInstance.Gen(specialPoints, nonZeroElements)
-	if err == nil || err.Error() != "special points and non-zero elements cannot be nil" {
-		t.Errorf("Gen did not return the correct error for nil values")
-	}
-}
-
-func TestDSPFGenDuplicateSpecialPoints(t *testing.T) {
-	var dspfInstance DSPF
-	specialPoint := big.NewInt(1)
-	specialPoints := []*big.Int{specialPoint, specialPoint}
-	nonZeroElements := []*big.Int{big.NewInt(2), big.NewInt(3)}
-
-	_, _, err := dspfInstance.Gen(specialPoints, nonZeroElements)
-	if err == nil || err.Error() != fmt.Sprintf("duplicate special point: %s", specialPoint.Text(10)) {
-		t.Errorf("Gen did not return the correct error for duplicate special points")
-	}
-}
-
-func TestDSPFGenEvalTreeDPF(t *testing.T) {
-	treeDPF128, err := treedpf.InitFactory(128, 128)
-	if err != nil {
-		t.Errorf("InitFactory returned an unexpected error: %v", err)
-	}
-	dspf := NewDSPFFactory(treeDPF128)
-	sp1 := big.NewInt(1)
-	nz1 := big.NewInt(3)
-
-	sp2 := big.NewInt(5)
-	nz2 := big.NewInt(61)
-
-	sp3 := big.NewInt(27)
-	nz3 := big.NewInt(82)
-
-	specialPoints := []*big.Int{sp1, sp2, sp3}
-	nonZeroElements := []*big.Int{nz1, nz2, nz3}
-
-	var keyAlice Key
-	var keyBob Key
-	keyAlice, keyBob, err = dspf.Gen(specialPoints, nonZeroElements)
-	if err != nil {
-		t.Errorf("Gen returned an unexpected error for valid input: %v", err)
-	}
-	if keyAlice.DPFKeys == nil || keyBob.DPFKeys == nil {
-		t.Errorf("Gen returned nil keys")
-	}
-
-	// Test EvalCombined
-	x := big.NewInt(2)
-	var ysAlice []*big.Int
-	var ysBob []*big.Int
-	ysAlice, err = dspf.Eval(keyAlice, x)
-	if err != nil {
-		t.Errorf("EvalCombined returned an unexpected error: %v", err)
-	}
-	ysBob, err = dspf.Eval(keyBob, x)
-	if err != nil {
-		t.Errorf("EvalCombined returned an unexpected error: %v", err)
-	}
-
-	// Test CombineSingleResult
-	var result *big.Int
-	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
-	if err != nil {
-		t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
-	}
-	// Expect result to be zero
-	if result.Cmp(big.NewInt(0)) != 0 {
-		t.Errorf("CombineSingleResult did not return zero")
-	}
-
-	// Test EvalCombined with non-zero result
-	x = sp2
-	ysAlice, err = dspf.Eval(keyAlice, x)
-	if err != nil {
-		t.Errorf("EvalCombined returned an unexpected error: %v", err)
-	}
-	ysBob, err = dspf.Eval(keyBob, x)
-	if err != nil {
-		t.Errorf("EvalCombined returned an unexpected error: %v", err)
-	}
-	result, err = dspf.CombineSingleResult(ysAlice, ysBob)
-	if err != nil {
-		t.Errorf("CombineSingleResult returned an unexpected error: %v", err)
-	}
-
-	// Expect result to be non-zero
-	if result.Cmp(nz2) != 0 {
-		t.Errorf("CombineSingleResult did not return the correct result")
-	}
-}
+// We allow duplicate special points for now
+// func TestDSPFGenDuplicateSpecialPoints(t *testing.T) {
+//	var dspfInstance DSPF
+//	specialPoint := big.NewInt(1)
+//	specialPoints := []*big.Int{specialPoint, specialPoint}
+//	nonZeroElements := []*big.Int{big.NewInt(2), big.NewInt(3)}
+//
+//	_, _, err := dspfInstance.Gen(specialPoints, nonZeroElements)
+//	if err == nil || err.Error() != fmt.Sprintf("duplicate special point: %s", specialPoint.Text(10)) {
+//		t.Errorf("Gen did not return the correct error for duplicate special points")
+//	}
+// }
 
 func TestDSPFGenEvalOpTreeDPF(t *testing.T) {
 	treedpf12864, err := optreedpf.InitFactory(128, 64)
@@ -401,7 +316,8 @@ func TestDSPFFullEvalFastOpTreeDPFSum(t *testing.T) {
 func BenchmarkOpTreeDSPFFullEval128_n10_t6(b *testing.B) { benchmarkOpTreeDSPFFullEval(b, 128, 10, 6) }
 func BenchmarkOpTreeDSPFFullEval128_n15_t6(b *testing.B) { benchmarkOpTreeDSPFFullEval(b, 128, 15, 6) }
 
-// The settings below are suitable for the PCG (e.g. (c,t) = (4, 16) or (8, 5))
+// The parameters chosen below are similar to the ones used in the PCG.
+// t = 16:
 func BenchmarkOpTreeDSPFFullEvalFast128_n10_t16(b *testing.B) {
 	benchmarkOpTreeDSPFFullEvalFast(b, 128, 10, 16)
 }
@@ -434,6 +350,48 @@ func BenchmarkOpTreeDSPFFullEvalFast128_n19_t16(b *testing.B) {
 }
 func BenchmarkOpTreeDSPFFullEvalFast128_n20_t16(b *testing.B) {
 	benchmarkOpTreeDSPFFullEvalFast(b, 128, 20, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n21_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 21, 16)
+}
+
+// The parameters chosen below are similar to the ones used in the PCG.
+// t = 16 -> t*t = 256:
+func BenchmarkOpTreeDSPFFullEvalFast128_n10_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 10, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n11_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 11, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n12_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 12, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n13_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 13, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n14_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 14, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n15_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 15, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n16_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 16, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n17_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 17, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n18_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 18, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n19_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 19, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n20_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 20, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalFast128_n21_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalFast(b, 128, 21, 256)
 }
 
 func benchmarkOpTreeDSPFFullEval(b *testing.B, lambda, domain, t int) {
@@ -507,7 +465,7 @@ func benchmarkOpTreeDSPFFullEvalFast(b *testing.B, lambda, domain, t int) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := dspf.FullEvalFast(k1)
+		_, err := dspf.FullEvalFastAggregated(k1)
 		if err != nil {
 			b.Fatal(err)
 		}

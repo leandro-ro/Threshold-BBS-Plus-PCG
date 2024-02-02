@@ -1,4 +1,4 @@
-module pcg-master-thesis
+module pcg-bbs-plus
 
 go 1.21.3
 

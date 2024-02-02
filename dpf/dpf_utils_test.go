@@ -55,3 +55,30 @@ func TestPRGWithDifferentSeeds(t *testing.T) {
 		t.Errorf("PRG() with different seeds should produce different outputs: got %v and %v", output1, output2)
 	}
 }
+
+func BenchmarkAES128(b *testing.B) {
+	seed := RandomSeed(16)
+	outputLength := 16 // 16 bytes = 128 bits
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		PRG(seed, outputLength)
+	}
+}
+
+func BenchmarkAES192(b *testing.B) {
+	seed := RandomSeed(16)
+	outputLength := 24 // 24 bytes = 192 bits
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		PRG(seed, outputLength)
+	}
+}
+
+func BenchmarkAES256(b *testing.B) {
+	seed := RandomSeed(16)
+	outputLength := 32 // 32 bytes = 256 bits
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		PRG(seed, outputLength)
+	}
+}

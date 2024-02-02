@@ -6,7 +6,7 @@ import (
 	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
 	"math/rand"
-	"pcg-master-thesis/pcg/poly"
+	"pcg-bbs-plus/pcg/poly"
 	"runtime"
 	"sort"
 	"sync"
@@ -457,6 +457,10 @@ func (p *PCG) evalFinalShare2D(w [][]*poly.Polynomial, oprand []*poly.Polynomial
 		}
 	}
 
+	alphai, err := alphai.Mod(div)
+	if err != nil {
+		return nil, err
+	}
 	return alphai, nil
 }
 
@@ -589,7 +593,7 @@ func (p *PCG) embedVOLECorrelations(omega [][][]*big.Int, beta [][][]*bls12381.F
 				for r := 0; r < p.c; r++ {
 					skShareIndex := j
 					if j > 1 {
-						skShareIndex = 1 // TODO: Remove. This is only for testing as we do not interpolate the sk shares
+						skShareIndex = 1 // We do this here as we do not interpolate (for testing only)
 					}
 
 					nonZeroElements := scalarMulFr(skShares[skShareIndex], beta[i][r])

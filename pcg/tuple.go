@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	bls12381 "github.com/kilic/bls12-381"
-	"pcg-master-thesis/pcg/poly"
+	"pcg-bbs-plus/pcg/poly"
 )
 
 // BBSPlusTupleGenerator holds the polynomials from which pre-computed BBS+ signatures can be derived.
@@ -17,6 +17,7 @@ type BBSPlusTupleGenerator struct {
 	alphaPoly  *poly.Polynomial
 	delta0Poly *poly.Polynomial
 	delta1Poly *poly.Polynomial
+	deltaPoly  *poly.Polynomial
 }
 
 // NewBBSPlusTupleGenerator returns a new BBSPlusTupleGenerator for an n-out-of-n scheme.
@@ -27,8 +28,9 @@ func NewBBSPlusTupleGenerator(SkShare *bls12381.Fr, APoly, EPoly, SPoly, AlphaPo
 		ePoly:      EPoly,
 		sPoly:      SPoly,
 		alphaPoly:  AlphaPoly,
-		delta0Poly: Delta0Poly,
+		delta0Poly: Delta0Poly, // Store delta0Poly and delta1Poly separately for testing purposes.
 		delta1Poly: Delta1Poly,
+		deltaPoly:  poly.Add(Delta0Poly, Delta1Poly),
 	}
 }
 
@@ -39,9 +41,7 @@ func (t *BBSPlusTupleGenerator) GenBBSPlusTuple(root *bls12381.Fr) *BBSPlusTuple
 	siElement := t.sPoly.Evaluate(root)
 	alphaiElement := t.alphaPoly.Evaluate(root)
 
-	// Recombine delta0i and delta1i to delta_i
-	deltaiElement := bls12381.NewFr()
-	deltaiElement.Add(t.delta0Poly.Evaluate(root), t.delta1Poly.Evaluate(root))
+	deltaiElement := t.deltaPoly.Evaluate(root)
 
 	return NewBBSPlusTuple(t.skShare, aiElement, eiElement, siElement, alphaiElement, deltaiElement)
 }
@@ -118,13 +118,11 @@ func (t *SeparateBBSPlusTupleGenerator) GenBBSPlusTuple(root *bls12381.Fr, signe
 	delta0i := poly.NewEmpty()
 	for _, signer := range signerSet {
 		if signer != t.ownIndex {
-			// TODO: Add sk interpolation here
 			delta0i.Add(t.delta0Poly[signer][forwardDirection])
 			delta0i.Add(t.delta0Poly[signer][backwardDirection])
 		}
 	}
 	delta0i.Add(t.usk)
-	delta0iElement := delta0i.Evaluate(root)
 
 	// Calculate alpha_i based on the signer set
 	alphai := poly.NewEmpty()
@@ -144,10 +142,9 @@ func (t *SeparateBBSPlusTupleGenerator) GenBBSPlusTuple(root *bls12381.Fr, signe
 		}
 	}
 	delta1i.Add(t.uv)
-	delta1iElement := delta1i.Evaluate(root)
 
-	deltaiElement := bls12381.NewFr()
-	deltaiElement.Add(delta0iElement, delta1iElement)
+	deltaiPoly := poly.Add(delta0i, delta1i)
+	deltaiElement := deltaiPoly.Evaluate(root)
 
 	return NewBBSPlusTuple(t.skShare, aiElement, eiElement, siElement, alphaiElement, deltaiElement)
 }

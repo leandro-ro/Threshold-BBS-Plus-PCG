@@ -225,6 +225,19 @@ func TestEvaluate(t *testing.T) {
 	assert.Equal(t, expectedResult, resultc)
 }
 
+func TestEvaluateLarge(t *testing.T) {
+	poly := NewFromFr(randomFrSlice(2048))
+	x := bls12381.NewFr().FromBytes(big.NewInt(14).Bytes())
+
+	resulta := poly.evaluateSequential(x)
+	resultb := poly.Evaluate(x)
+
+	assert.True(t, resulta.Equal(resultb))
+
+	resultd := poly.evaluateParallel(x)
+	assert.True(t, resulta.Equal(resultd))
+}
+
 func TestSeparateMul(t *testing.T) {
 	n := 512
 	slice1 := randomFrSlice(n)
@@ -424,6 +437,37 @@ func TestModCyclotomic(t *testing.T) {
 	assert.True(t, degCyc < maxDegreeB)
 }
 
+func BenchmarkMulNaiveN8(b *testing.B)  { benchmarkMulNaive(b, 256) }
+func BenchmarkMulNaiveN10(b *testing.B) { benchmarkMulNaive(b, 1024) }
+func BenchmarkMulNaiveN12(b *testing.B) { benchmarkMulNaive(b, 4096) }
+
+func BenchmarkMulFFTN10(b *testing.B) { benchmarkMulFFT(b, 1024) }
+func BenchmarkMulFFTN11(b *testing.B) { benchmarkMulFFT(b, 2048) }
+func BenchmarkMulFFTN12(b *testing.B) { benchmarkMulFFT(b, 4096) }
+func BenchmarkMulFFTN13(b *testing.B) { benchmarkMulFFT(b, 8192) }
+func BenchmarkMulFFTN14(b *testing.B) { benchmarkMulFFT(b, 16384) }
+func BenchmarkMulFFTN15(b *testing.B) { benchmarkMulFFT(b, 32768) }
+func BenchmarkMulFFTN16(b *testing.B) { benchmarkMulFFT(b, 65536) }
+func BenchmarkMulFFTN17(b *testing.B) { benchmarkMulFFT(b, 131072) }
+func BenchmarkMulFFTN18(b *testing.B) { benchmarkMulFFT(b, 262144) }
+func BenchmarkMulFFTN19(b *testing.B) { benchmarkMulFFT(b, 524288) }
+func BenchmarkMulFFTN20(b *testing.B) { benchmarkMulFFT(b, 1048576) }
+
+func BenchmarkEvaluateN10(b *testing.B) { benchmarkEvaluation(b, 1024) }
+func BenchmarkEvaluateN11(b *testing.B) { benchmarkEvaluation(b, 2048) }
+func BenchmarkEvaluateN12(b *testing.B) { benchmarkEvaluation(b, 4096) }
+func BenchmarkEvaluateN13(b *testing.B) { benchmarkEvaluation(b, 8192) }
+func BenchmarkEvaluateN14(b *testing.B) { benchmarkEvaluation(b, 16384) }
+func BenchmarkEvaluateN15(b *testing.B) { benchmarkEvaluation(b, 32768) }
+func BenchmarkEvaluateN16(b *testing.B) { benchmarkEvaluation(b, 65536) }
+func BenchmarkEvaluateN17(b *testing.B) { benchmarkEvaluation(b, 131072) }
+func BenchmarkEvaluateN18(b *testing.B) { benchmarkEvaluation(b, 262144) }
+func BenchmarkEvaluateN19(b *testing.B) { benchmarkEvaluation(b, 524288) }
+func BenchmarkEvaluateN20(b *testing.B) { benchmarkEvaluation(b, 1048576) }
+
+func BenchmarkSparseN20T16(b *testing.B)  { benchmarkMulSparse(b, 1048576, 16) }
+func BenchmarkSparseN21T256(b *testing.B) { benchmarkMulSparse(b, 2097152, 256) }
+
 func BenchmarkMulNaiveN8(b *testing.B)             { benchmarkMulNaive(b, 256) }
 func BenchmarkMulFFTN8(b *testing.B)               { benchmarkMulFFT(b, 256) }
 func BenchmarkMulNaiveN10(b *testing.B)            { benchmarkMulNaive(b, 1024) }
@@ -433,6 +477,7 @@ func BenchmarkMulFFTN12(b *testing.B)              { benchmarkMulFFT(b, 4096) }
 func BenchmarkMulFFTN20(b *testing.B)              { benchmarkMulFFT(b, 1048576) }
 func BenchmarkSparseN20T16(b *testing.B)           { benchmarkMulSparse(b, 1048576, 16) }
 func BenchmarkSparseN21T256(b *testing.B)          { benchmarkMulSparse(b, 2097152, 256) }
+
 func BenchmarkNaiveModCyclotomic(b *testing.B)     { benchmarkNaiveModCyclotomic(b, 512, 128) }
 func BenchmarkOptimizedModCyclotomic(b *testing.B) { benchmarkOptimizedModCyclotomic(b, 512, 128) }
 
@@ -517,6 +562,22 @@ func benchmarkOptimizedModCyclotomic(b *testing.B, polyDegree, divisorDegree int
 		if err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+func benchmarkEvaluation(b *testing.B, n int) {
+	slice1 := randomFrSlice(n)
+	poly1 := NewFromFr(slice1)
+
+	rng := rand.New(rand.NewSource(rand.Int63()))
+	point, err := bls12381.NewFr().Rand(rng)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		poly1.Evaluate(point)
 	}
 }
 

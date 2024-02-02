@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"io"
-	"pcg-master-thesis/dpf"
+	"pcg-bbs-plus/dpf"
 )
 
 // Key holds the DPF keys the DSPF is constructed on.

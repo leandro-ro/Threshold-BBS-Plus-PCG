@@ -4,7 +4,7 @@ import (
 	"errors"
 	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
-	"pcg-master-thesis/dpf"
+	"pcg-bbs-plus/dpf"
 	"runtime"
 	"sync"
 )
@@ -27,21 +27,6 @@ func (d *DSPF) Gen(specialPoints []*big.Int, nonZeroElements []*big.Int) (Key, K
 	if len(specialPoints) != len(nonZeroElements) {
 		return Key{}, Key{}, errors.New("the number of special points and non-zero elements must match")
 	}
-
-	// Check for duplicates in specialPoints // TODO: For now, we allow duplicates although this is not secure
-	// seen := make(map[string]struct{})
-	// for i, sp := range specialPoints {
-	//	if sp == nil || nonZeroElements[i] == nil {
-	//		return Key{}, Key{}, errors.New("special points and non-zero elements cannot be nil")
-	//	}
-
-	// Use string representation of big.Int for map key
-	// spStr := sp.Text(10) // Base 10 for decimal representation
-	// if _, exists := seen[spStr]; exists {
-	// 	return Key{}, Key{}, fmt.Errorf("duplicate special point: %s", spStr)
-	// }
-	// seen[spStr] = struct{}{}
-	//}
 
 	// Generate DPF keys for each (specialPoint, nonZeroElement) pair
 	var keyAlice Key
@@ -124,6 +109,7 @@ func (d *DSPF) FullEval(dspfKey Key) ([][]*big.Int, error) {
 
 // FullEvalFast evaluates each DPF of the DSPF on all points in the domain.
 // It parallelizes the evaluation of each DPF.
+// Warning: For large Domains use FullEvalFastAggregated instead to avoid memory issues.
 func (d *DSPF) FullEvalFast(dspfKey Key) ([][]*big.Int, error) {
 	ys := make([][]*big.Int, len(dspfKey.DPFKeys))
 	errCh := make(chan error, 1)
@@ -164,7 +150,7 @@ type AggregatedResult struct {
 
 // FullEvalFastAggregated evaluates each DPF of the DSPF on all points in the domain.
 // It parallelizes the evaluation of each DPF. It aggregates the results in a single result.
-// This also uses a worker pool to parallelize the aggregation efficiently.
+// This also uses a worker pool to parallelize the aggregation efficiently in oder to avoid memory issues.
 func (d *DSPF) FullEvalFastAggregated(dspfKey Key) ([]*bls12381.Fr, error) {
 	expectedLen := big.NewInt(0).Exp(big.NewInt(2), big.NewInt(int64(d.baseDPF.GetDomain())), nil)
 	numWorkers := runtime.NumCPU()
