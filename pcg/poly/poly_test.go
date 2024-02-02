@@ -468,6 +468,16 @@ func BenchmarkEvaluateN20(b *testing.B) { benchmarkEvaluation(b, 1048576) }
 func BenchmarkSparseN20T16(b *testing.B)  { benchmarkMulSparse(b, 1048576, 16) }
 func BenchmarkSparseN21T256(b *testing.B) { benchmarkMulSparse(b, 2097152, 256) }
 
+func BenchmarkMulNaiveN8(b *testing.B)             { benchmarkMulNaive(b, 256) }
+func BenchmarkMulFFTN8(b *testing.B)               { benchmarkMulFFT(b, 256) }
+func BenchmarkMulNaiveN10(b *testing.B)            { benchmarkMulNaive(b, 1024) }
+func BenchmarkMulFFTN10(b *testing.B)              { benchmarkMulFFT(b, 1024) }
+func BenchmarkMulNaiveN12(b *testing.B)            { benchmarkMulNaive(b, 4096) }
+func BenchmarkMulFFTN12(b *testing.B)              { benchmarkMulFFT(b, 4096) }
+func BenchmarkMulFFTN20(b *testing.B)              { benchmarkMulFFT(b, 1048576) }
+func BenchmarkSparseN20T16(b *testing.B)           { benchmarkMulSparse(b, 1048576, 16) }
+func BenchmarkSparseN21T256(b *testing.B)          { benchmarkMulSparse(b, 2097152, 256) }
+
 func BenchmarkNaiveModCyclotomic(b *testing.B)     { benchmarkNaiveModCyclotomic(b, 512, 128) }
 func BenchmarkOptimizedModCyclotomic(b *testing.B) { benchmarkOptimizedModCyclotomic(b, 512, 128) }
 
