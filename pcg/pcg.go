@@ -4,6 +4,7 @@ import (
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
 	"log"
+	"math"
 	"math/big"
 	"math/rand"
 	"pcg-bbs-plus/dpf"
@@ -91,41 +92,27 @@ func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 	twoPowN := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
 	modCheck := new(big.Int).Mod(smoothOrder, twoPowN)
 	if !(modCheck.Cmp(big.NewInt(0)) == 0) {
-		return nil, fmt.Errorf("order must divide multiplactive group order of BLS12-381")
+		return nil, fmt.Errorf("order must divide multiplicative group order of BLS12-381")
 	}
 
 	smoothOrderDivN := new(big.Int).Div(smoothOrder, twoPowN)
 	powerIteratorBase := new(big.Int).Exp(multiplicativeSmoothGroupGenerator, smoothOrderDivN, groupOrder)
 
-	// init div as 1 poly
-	div := poly.NewFromFr([]*bls12381.Fr{bls12381.NewFr().One()})
+	// Generate roots
 	roots := make([]*bls12381.Fr, twoPowN.Int64())
-	for i := 0; i < int(twoPowN.Int64()); i++ {
-		if useCyclotomic {
-			val := new(big.Int).Exp(powerIteratorBase, big.NewInt(int64(i+1)), groupOrder)
-			roots[i] = bls12381.NewFr().FromBytes(val.Bytes())
-		} else {
-			val, err := bls12381.NewFr().Rand(p.rng)
-			if err != nil {
-				return nil, err
-			}
-
-			bZero := big.NewInt(0).Sub(groupOrder, val.ToBig())
-			bOne := big.NewInt(1)
-			b := poly.NewFromBig([]*big.Int{bZero, bOne})
-
-			err = div.Mul(b)
-			if err != nil {
-				return nil, err
-			}
-
-			roots[i] = val
+	pos := 0
+	for i := 0; i < 2*int(twoPowN.Int64()); i++ {
+		if math.Mod(float64(i), 2) == 1 { // only every second root
+			val := new(big.Int).Exp(powerIteratorBase, big.NewInt(int64(i)), groupOrder) // Start from i=0 for the first root
+			roots[pos] = bls12381.NewFr().FromBytes(val.Bytes())
+			pos++
 		}
-
 	}
 
-	if useCyclotomic {
-		div, _ = poly.NewCyclotomicPolynomial(twoPowN) // div = x^2^(N-1) + 1
+	// div = x^2^N + 1
+	div, err := poly.NewCyclotomicPolynomial(twoPowN)
+	if err != nil {
+		return nil, err // Handle error appropriately
 	}
 
 	return &Ring{div, roots}, nil
