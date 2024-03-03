@@ -160,16 +160,21 @@ func NewRandomPolynomial(rng *rand.Rand, degree int) (*Polynomial, error) {
 }
 
 // NewCyclotomicPolynomial creates a cyclotomic polynomial of the given degree.
-// The resulting polynomial will have the following structure: x^degree + neg(1)
+// The degree must be a power of 2. The resulting polynomial will have the following structure: x^(degree/2) + 1.
 func NewCyclotomicPolynomial(degree *big.Int) (*Polynomial, error) {
 	if degree.Cmp(big.NewInt(0)) < 0 {
 		return nil, fmt.Errorf("degree must be greater than zero")
 	}
+
+	if !isPowerOfTwo(degree) {
+		return nil, fmt.Errorf("degree must be a power of 2")
+	}
+
 	one := bls12381.NewFr().One()
 	poly := NewEmpty()
 	poly.Coefficients[0] = bls12381.NewFr()
-	poly.Coefficients[0].Neg(one)
-	poly.Coefficients[int(degree.Int64())] = bls12381.NewFr().One()
+	poly.Coefficients[0].Set(one)                                     // + 1
+	poly.Coefficients[int(degree.Int64())/2] = bls12381.NewFr().One() // 1*x^(degree/2)
 
 	return poly, nil
 }
@@ -426,11 +431,7 @@ func (p *Polynomial) evaluateParallel(x *bls12381.Fr) *bls12381.Fr {
 
 // Mod returns the remainder of the polynomial divided by another polynomial.
 func (p *Polynomial) Mod(divisor *Polynomial) (*Polynomial, error) {
-	if p.isCyclotomic() { // Optimization for cyclotomic polynomials
-		return p.modCyclotomic(divisor)
-	} else {
-		return p.modNaive(divisor)
-	}
+	return p.modNaive(divisor)
 }
 
 // modNaive returns the remainder of the polynomial divided by another polynomial.
@@ -476,46 +477,8 @@ func (p *Polynomial) modNaive(divisor *Polynomial) (*Polynomial, error) {
 	return remainder, nil
 }
 
-// modCyclotomic performs a modulo operation on a polynomial with a cyclotomic polynomial.
-// This is an optimization for the modulo operation as we do not need to perform polynomial multiplication.
-func (p *Polynomial) modCyclotomic(divisor *Polynomial) (*Polynomial, error) {
-	divisorDegree, err := divisor.Degree()
-	if err != nil {
-		return nil, err
-	}
-	currentRemDeg, err := p.Degree()
-	if err != nil {
-		return nil, err
-	}
-
-	// Quick check if the degree of the divisor is greater than the dividend
-	if divisorDegree > currentRemDeg {
-		return p.DeepCopy(), nil
-	}
-
-	remainder := NewEmpty()
-	// Iterate over all Coefficients of p
-	for degree, coefficient := range p.Coefficients {
-		newDegree := degree % divisorDegree
-		if val, ok := remainder.Coefficients[newDegree]; ok {
-			// If there is already a coefficient at newDegree, add to it
-			val.Add(val, coefficient)
-			if val.IsZero() {
-				delete(remainder.Coefficients, newDegree)
-			}
-		} else {
-			// Otherwise, set the new coefficient at newDegree
-			coeffCopy := bls12381.NewFr().FromBytes(coefficient.ToBytes())
-			remainder.Coefficients[newDegree] = bls12381.NewFr()
-			remainder.Coefficients[newDegree].Set(coeffCopy)
-		}
-	}
-
-	return remainder, nil
-}
-
-// isCyclotomic checks if the polynomial is a cyclotomic polynomial.
-// A cyclotomic polynomial is of the form x^n + neg(1).
+// isCyclotomic checks if the polynomial is a cyclotomic polynomial of form x^n + 1.
+// we only consider cyclotomic polynomials with n being a power of 2.
 func (p *Polynomial) isCyclotomic() bool {
 	degree, err := p.Degree()
 	if err != nil {
@@ -534,9 +497,7 @@ func (p *Polynomial) isCyclotomic() bool {
 		return false
 	}
 	if val, ok := p.Coefficients[0]; ok {
-		oneNeg := bls12381.NewFr()
-		oneNeg.Neg(one)
-		if !val.Equal(oneNeg) {
+		if !val.Equal(one) {
 			return false
 		}
 	} else {
@@ -712,4 +673,19 @@ func log2(n int) int {
 		log++
 	}
 	return log
+}
+
+// isPowerOfTwo checks if the given big.Int is a power of two.
+func isPowerOfTwo(n *big.Int) bool {
+	if n.Sign() <= 0 { // Check if n is positive.
+		return false
+	}
+
+	// Create a big.Int with value 1 and left-shift it to the position of the highest bit in n.
+	// Then, subtract 1 from the shifted value to get a bitmask of all lower bits set.
+	one := big.NewInt(1)
+	bitmask := new(big.Int).Sub(new(big.Int).Lsh(one, uint(n.BitLen()-1)), one)
+
+	// Perform a bitwise AND operation with n and the bitmask. If n is a power of two, the result should be 0.
+	return new(big.Int).And(n, bitmask).Cmp(big.NewInt(0)) == 0
 }

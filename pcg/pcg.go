@@ -125,7 +125,7 @@ func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 	}
 
 	if useCyclotomic {
-		div, _ = poly.NewCyclotomicPolynomial(twoPowN) // div = x^N^2 + neg(1)
+		div, _ = poly.NewCyclotomicPolynomial(twoPowN) // div = x^2^(N-1) + 1
 	}
 
 	return &Ring{div, roots}, nil

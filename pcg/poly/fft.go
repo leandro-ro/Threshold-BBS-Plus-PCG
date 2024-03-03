@@ -124,6 +124,24 @@ func (f *FFT) MulPolysFFT(a []*big.Int, b []*big.Int) ([]*big.Int, error) {
 	return result, nil
 }
 
+// ForwardFFT converts a slice of polynomial coefficients (as *big.Int) into its point-value form using FFT.
+func (f *FFT) ForwardFFT(coeffs []*big.Int) ([]*big.Int, error) {
+	if len(coeffs) > int(math.Pow(2, float64(f.n))) {
+		return nil, fmt.Errorf("polynomial too large for FFT parameters")
+	}
+	pointValues := f.fft(coeffs, false)
+	return pointValues, nil
+}
+
+// InverseFFT converts a slice of point-values (as *big.Int) back into polynomial coefficients using the inverse FFT.
+func (f *FFT) InverseFFT(pointValues []*big.Int) ([]*big.Int, error) {
+	if len(pointValues) > int(math.Pow(2, float64(f.n))) {
+		return nil, fmt.Errorf("point-value form too large for FFT parameters")
+	}
+	coeffs := f.fft(pointValues, true)
+	return coeffs, nil
+}
+
 func (f *FFT) fft(vals []*big.Int, inv bool) []*big.Int {
 	// Build up roots of unity
 	rootz := make([]*big.Int, 2)

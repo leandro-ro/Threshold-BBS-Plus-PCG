@@ -408,35 +408,6 @@ func TestModLarge(t *testing.T) {
 	assert.True(t, deg < degB)
 }
 
-func TestModCyclotomic(t *testing.T) {
-	maxDegreeA := 512
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	aPoly, err := NewRandomPolynomial(rng, maxDegreeA)
-	assert.Nil(t, err)
-
-	maxDegreeB := 128
-	bPoly, err := NewCyclotomicPolynomial(big.NewInt(int64(maxDegreeB)))
-	assert.Nil(t, err)
-	assert.True(t, bPoly.isCyclotomic())
-
-	modRef, err := aPoly.modNaive(bPoly)
-	assert.Nil(t, err)
-	assert.NotNil(t, modRef)
-
-	modCycl, err := aPoly.modCyclotomic(bPoly)
-	assert.Nil(t, err)
-
-	assert.True(t, modRef.Equal(modCycl))
-
-	degRef, err := modRef.Degree()
-	assert.Nil(t, err)
-	assert.True(t, degRef < maxDegreeB)
-
-	degCyc, err := modCycl.Degree()
-	assert.Nil(t, err)
-	assert.True(t, degCyc < maxDegreeB)
-}
-
 func BenchmarkMulNaiveN8(b *testing.B)  { benchmarkMulNaive(b, 256) }
 func BenchmarkMulNaiveN10(b *testing.B) { benchmarkMulNaive(b, 1024) }
 func BenchmarkMulNaiveN12(b *testing.B) { benchmarkMulNaive(b, 4096) }
@@ -464,9 +435,6 @@ func BenchmarkEvaluateN17(b *testing.B) { benchmarkEvaluation(b, 131072) }
 func BenchmarkEvaluateN18(b *testing.B) { benchmarkEvaluation(b, 262144) }
 func BenchmarkEvaluateN19(b *testing.B) { benchmarkEvaluation(b, 524288) }
 func BenchmarkEvaluateN20(b *testing.B) { benchmarkEvaluation(b, 1048576) }
-
-func BenchmarkNaiveModCyclotomic(b *testing.B)     { benchmarkNaiveModCyclotomic(b, 512, 128) }
-func BenchmarkOptimizedModCyclotomic(b *testing.B) { benchmarkOptimizedModCyclotomic(b, 512, 128) }
 
 func benchmarkMulNaive(b *testing.B, n int) {
 	slice1 := randomFrSlice(n)
@@ -516,36 +484,6 @@ func benchmarkMulSparse(b *testing.B, n, t int) {
 		p := polyA.DeepCopy()
 		b.StartTimer()
 		err := p.Mul(polyB) // Mul will use the fast algorithm for sparse polynomials.
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func benchmarkNaiveModCyclotomic(b *testing.B, polyDegree, divisorDegree int) {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	poly, _ := NewRandomPolynomial(rng, polyDegree)
-
-	divisor, _ := NewCyclotomicPolynomial(big.NewInt(int64(divisorDegree)))
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := poly.modNaive(divisor)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func benchmarkOptimizedModCyclotomic(b *testing.B, polyDegree, divisorDegree int) {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	poly, _ := NewRandomPolynomial(rng, polyDegree)
-
-	divisor, _ := NewCyclotomicPolynomial(big.NewInt(int64(divisorDegree)))
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := poly.modCyclotomic(divisor)
 		if err != nil {
 			b.Fatal(err)
 		}
