@@ -59,6 +59,8 @@ func NewPCG(lambda, N, n, tau, c, t int) (*PCG, error) {
 }
 
 // Define the ring we are working with.
+// The cyclotomic polynomial defined here is F(x)= x^((2^(N+1))/2) + 1
+// s.t. we can calculate N roots of unity r s.t. F(r) = 0
 func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 	// Define the Ring we work in
 	smallFactorThreshold := big.NewInt(1000)
@@ -89,19 +91,21 @@ func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 	exp.Div(exp, smoothOrder)
 	multiplicativeSmoothGroupGenerator := new(big.Int).Exp(primitiveRootOfUnity, exp, groupOrder)
 
-	twoPowN := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil)
+	twoPowN := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(p.N)), nil) // 2^N
+	twoPowNDouble := new(big.Int).Mul(twoPowN, big.NewInt(2))               // 2^(N+1)
+
 	modCheck := new(big.Int).Mod(smoothOrder, twoPowN)
 	if !(modCheck.Cmp(big.NewInt(0)) == 0) {
 		return nil, fmt.Errorf("order must divide multiplicative group order of BLS12-381")
 	}
 
-	smoothOrderDivN := new(big.Int).Div(smoothOrder, twoPowN)
+	smoothOrderDivN := new(big.Int).Div(smoothOrder, twoPowNDouble)
 	powerIteratorBase := new(big.Int).Exp(multiplicativeSmoothGroupGenerator, smoothOrderDivN, groupOrder)
 
 	// Generate roots
 	roots := make([]*bls12381.Fr, twoPowN.Int64())
 	pos := 0
-	for i := 0; i < 2*int(twoPowN.Int64()); i++ {
+	for i := 0; i < int(twoPowNDouble.Int64()); i++ {
 		if math.Mod(float64(i), 2) == 1 { // only every second root
 			val := new(big.Int).Exp(powerIteratorBase, big.NewInt(int64(i)), groupOrder) // Start from i=0 for the first root
 			roots[pos] = bls12381.NewFr().FromBytes(val.Bytes())
@@ -109,8 +113,8 @@ func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
 		}
 	}
 
-	// div = x^2^N + 1
-	div, err := poly.NewCyclotomicPolynomial(twoPowN)
+	// div = x^((2^(N+1))/2) + 1
+	div, err := poly.NewCyclotomicPolynomial(twoPowNDouble)
 	if err != nil {
 		return nil, err // Handle error appropriately
 	}
