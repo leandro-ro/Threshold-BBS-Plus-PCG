@@ -3,6 +3,7 @@ package pcg
 import (
 	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
+	"math/big"
 	"testing"
 )
 
@@ -30,7 +31,7 @@ func TestPCGCombinedEnd2End(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, eval1)
 
-	keyNr := 10
+	keyNr := 9
 	root := ring.Roots[keyNr]
 
 	tuple0 := eval0.GenBBSPlusTuple(root)
@@ -142,4 +143,30 @@ func TestPCGSeparateEnd2End(t *testing.T) {
 	as := bls12381.NewFr()
 	as.Mul(a, s)
 	assert.Equal(t, 0, alpha.Cmp(as))
+}
+
+func TestRootsOfUnity(t *testing.T) {
+	pcg, err := NewPCG(128, 10, 2, 2, 2, 4) // Small lpn parameters for testing.
+
+	ring, err := pcg.GetRing(true)
+	assert.Nil(t, err)
+
+	twoPowN := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(pcg.N)), nil)
+
+	assert.Equal(t, 0, twoPowN.Cmp(big.NewInt(int64(len(ring.Roots)))))
+
+	// roots must be unique
+	for i := 0; i < len(ring.Roots); i++ {
+		for j := 0; j < len(ring.Roots); j++ {
+			if i != j {
+				assert.False(t, ring.Roots[i].Equal(ring.Roots[j]))
+			}
+		}
+	}
+
+	// for each ring.root evaluate ring.div
+	zero := big.NewInt(0)
+	for i := 0; i < len(ring.Roots); i++ {
+		assert.Equal(t, 0, zero.Cmp(ring.Div.Evaluate(ring.Roots[i]).ToBig()))
+	}
 }
