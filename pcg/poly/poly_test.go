@@ -424,17 +424,29 @@ func BenchmarkMulFFTN18(b *testing.B) { benchmarkMulFFT(b, 262144) }
 func BenchmarkMulFFTN19(b *testing.B) { benchmarkMulFFT(b, 524288) }
 func BenchmarkMulFFTN20(b *testing.B) { benchmarkMulFFT(b, 1048576) }
 
-func BenchmarkEvaluateN10(b *testing.B) { benchmarkEvaluation(b, 1024) }
-func BenchmarkEvaluateN11(b *testing.B) { benchmarkEvaluation(b, 2048) }
-func BenchmarkEvaluateN12(b *testing.B) { benchmarkEvaluation(b, 4096) }
-func BenchmarkEvaluateN13(b *testing.B) { benchmarkEvaluation(b, 8192) }
-func BenchmarkEvaluateN14(b *testing.B) { benchmarkEvaluation(b, 16384) }
-func BenchmarkEvaluateN15(b *testing.B) { benchmarkEvaluation(b, 32768) }
-func BenchmarkEvaluateN16(b *testing.B) { benchmarkEvaluation(b, 65536) }
-func BenchmarkEvaluateN17(b *testing.B) { benchmarkEvaluation(b, 131072) }
-func BenchmarkEvaluateN18(b *testing.B) { benchmarkEvaluation(b, 262144) }
-func BenchmarkEvaluateN19(b *testing.B) { benchmarkEvaluation(b, 524288) }
-func BenchmarkEvaluateN20(b *testing.B) { benchmarkEvaluation(b, 1048576) }
+func BenchmarkEvaluateFastN10(b *testing.B) { benchmarkEvaluationFast(b, 1024) }
+func BenchmarkEvaluateFastN11(b *testing.B) { benchmarkEvaluationFast(b, 2048) }
+func BenchmarkEvaluateFastN12(b *testing.B) { benchmarkEvaluationFast(b, 4096) }
+func BenchmarkEvaluateFastN13(b *testing.B) { benchmarkEvaluationFast(b, 8192) }
+func BenchmarkEvaluateFastN14(b *testing.B) { benchmarkEvaluationFast(b, 16384) }
+func BenchmarkEvaluateFastN15(b *testing.B) { benchmarkEvaluationFast(b, 32768) }
+func BenchmarkEvaluateFastN16(b *testing.B) { benchmarkEvaluationFast(b, 65536) }
+func BenchmarkEvaluateFastN17(b *testing.B) { benchmarkEvaluationFast(b, 131072) }
+func BenchmarkEvaluateFastN18(b *testing.B) { benchmarkEvaluationFast(b, 262144) }
+func BenchmarkEvaluateFastN19(b *testing.B) { benchmarkEvaluationFast(b, 524288) }
+func BenchmarkEvaluateFastN20(b *testing.B) { benchmarkEvaluationFast(b, 1048576) }
+
+func BenchmarkEvaluateNaiveN10(b *testing.B) { benchmarkEvaluationNaive(b, 1024) }
+func BenchmarkEvaluateNaiveN11(b *testing.B) { benchmarkEvaluationNaive(b, 2048) }
+func BenchmarkEvaluateNaiveN12(b *testing.B) { benchmarkEvaluationNaive(b, 4096) }
+func BenchmarkEvaluateNaiveN13(b *testing.B) { benchmarkEvaluationNaive(b, 8192) }
+func BenchmarkEvaluateNaiveN14(b *testing.B) { benchmarkEvaluationNaive(b, 16384) }
+func BenchmarkEvaluateNaiveN15(b *testing.B) { benchmarkEvaluationNaive(b, 32768) }
+func BenchmarkEvaluateNaiveN16(b *testing.B) { benchmarkEvaluationNaive(b, 65536) }
+func BenchmarkEvaluateNaiveN17(b *testing.B) { benchmarkEvaluationNaive(b, 131072) }
+func BenchmarkEvaluateNaiveN18(b *testing.B) { benchmarkEvaluationNaive(b, 262144) }
+func BenchmarkEvaluateNaiveN19(b *testing.B) { benchmarkEvaluationNaive(b, 524288) }
+func BenchmarkEvaluateNaiveN20(b *testing.B) { benchmarkEvaluationNaive(b, 1048576) }
 
 func benchmarkMulNaive(b *testing.B, n int) {
 	slice1 := randomFrSlice(n)
@@ -469,28 +481,7 @@ func benchmarkMulFFT(b *testing.B, n int) {
 	}
 }
 
-func benchmarkMulSparse(b *testing.B, n, t int) {
-	coefficientsA := randomFrSlice(t)
-	exponentsA := randomBigIntSlice(t, big.NewInt(int64(n)))
-	polyA, _ := NewSparse(coefficientsA, exponentsA)
-
-	coefficientsB := randomFrSlice(t)
-	exponentsB := randomBigIntSlice(t, big.NewInt(int64(n)))
-	polyB, _ := NewSparse(coefficientsB, exponentsB)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		p := polyA.DeepCopy()
-		b.StartTimer()
-		err := p.Mul(polyB) // Mul will use the fast algorithm for sparse polynomials.
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func benchmarkEvaluation(b *testing.B, n int) {
+func benchmarkEvaluationFast(b *testing.B, n int) {
 	slice1 := randomFrSlice(n)
 	poly1 := NewFromFr(slice1)
 
@@ -503,6 +494,22 @@ func benchmarkEvaluation(b *testing.B, n int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		poly1.Evaluate(point)
+	}
+}
+
+func benchmarkEvaluationNaive(b *testing.B, n int) {
+	slice1 := randomFrSlice(n)
+	poly1 := NewFromFr(slice1)
+
+	rng := rand.New(rand.NewSource(rand.Int63()))
+	point, err := bls12381.NewFr().Rand(rng)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		poly1.evaluateSequential(point)
 	}
 }
 
