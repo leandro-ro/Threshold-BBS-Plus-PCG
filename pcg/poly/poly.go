@@ -377,8 +377,7 @@ func (p *Polynomial) evaluateSequential(x *bls12381.Fr) *bls12381.Fr {
 
 	degree, err := p.Degree()
 	if err != nil {
-		// Propagate the error or handle it as needed
-		panic(err) // Example error handling
+		panic(err)
 	}
 
 	for i := degree; i >= 0; i-- {

@@ -408,9 +408,17 @@ func TestModLarge(t *testing.T) {
 	assert.True(t, deg < degB)
 }
 
-func BenchmarkMulNaiveN8(b *testing.B)  { benchmarkMulNaive(b, 256) }
 func BenchmarkMulNaiveN10(b *testing.B) { benchmarkMulNaive(b, 1024) }
+func BenchmarkMulNaiveN11(b *testing.B) { benchmarkMulNaive(b, 2048) }
 func BenchmarkMulNaiveN12(b *testing.B) { benchmarkMulNaive(b, 4096) }
+func BenchmarkMulNaiveN13(b *testing.B) { benchmarkMulNaive(b, 8192) }
+func BenchmarkMulNaiveN14(b *testing.B) { benchmarkMulNaive(b, 16384) }
+func BenchmarkMulNaiveN15(b *testing.B) { benchmarkMulNaive(b, 32768) }
+func BenchmarkMulNaiveN16(b *testing.B) { benchmarkMulNaive(b, 65536) }
+func BenchmarkMulNaiveN17(b *testing.B) { benchmarkMulNaive(b, 131072) }
+func BenchmarkMulNaiveN18(b *testing.B) { benchmarkMulNaive(b, 262144) }
+func BenchmarkMulNaiveN19(b *testing.B) { benchmarkMulNaive(b, 524288) }
+func BenchmarkMulNaiveN20(b *testing.B) { benchmarkMulNaive(b, 1048576) }
 
 func BenchmarkMulFFTN10(b *testing.B) { benchmarkMulFFT(b, 1024) }
 func BenchmarkMulFFTN11(b *testing.B) { benchmarkMulFFT(b, 2048) }
