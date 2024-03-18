@@ -313,11 +313,46 @@ func TestDSPFFullEvalFastOpTreeDPFSum(t *testing.T) {
 }
 
 // Benchmarks:
-func BenchmarkOpTreeDSPFFullEval128_n10_t6(b *testing.B) { benchmarkOpTreeDSPFFullEval(b, 128, 10, 6) }
-func BenchmarkOpTreeDSPFFullEval128_n15_t6(b *testing.B) { benchmarkOpTreeDSPFFullEval(b, 128, 15, 6) }
 
 // The parameters chosen below are similar to the ones used in the PCG.
 // t = 16:
+func BenchmarkOpTreeDSPFFullEvalSeq128_n10_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 10, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n11_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 11, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n12_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 12, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n13_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 13, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n14_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 14, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n15_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 15, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n16_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 16, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n17_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 17, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n18_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 18, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n19_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 19, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n20_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 20, 16)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n21_t16(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 21, 16)
+}
+
 func BenchmarkOpTreeDSPFFullEvalFast128_n10_t16(b *testing.B) {
 	benchmarkOpTreeDSPFFullEvalFast(b, 128, 10, 16)
 }
@@ -394,43 +429,41 @@ func BenchmarkOpTreeDSPFFullEvalFast128_n21_t256(b *testing.B) {
 	benchmarkOpTreeDSPFFullEvalFast(b, 128, 21, 256)
 }
 
-func benchmarkOpTreeDSPFFullEval(b *testing.B, lambda, domain, t int) {
-	d, err := optreedpf.InitFactory(lambda, domain)
-	if err != nil {
-		b.Fatal(err)
-	}
-	dspf := NewDSPFFactory(d)
-	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
-
-	specialPoints := make([]*big.Int, t)
-	nonZeroElements := make([]*big.Int, t)
-
-	for i := 0; i < t; i++ {
-		x, err := rand.Int(rand.Reader, maxInputX)
-		if err != nil {
-			b.Errorf("Error generating random x: %v", err)
-		}
-		specialPoints[i] = x
-
-		y, err := rand.Int(rand.Reader, d.BetaMax) // Max input is the base field size
-		if err != nil {
-			b.Errorf("Error generating random y: %v", err)
-		}
-		nonZeroElements[i] = y
-	}
-
-	k1, _, err := dspf.Gen(specialPoints, nonZeroElements)
-	if err != nil {
-		return
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := dspf.FullEval(k1)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n10_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 10, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n11_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 11, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n12_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 12, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n13_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 13, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n14_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 14, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n15_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 15, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n16_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 16, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n17_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 17, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n18_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 18, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n19_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 19, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n20_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 20, 256)
+}
+func BenchmarkOpTreeDSPFFullEvalSeq128_n21_t256(b *testing.B) {
+	benchmarkOpTreeDSPFFullEvalSequential(b, 128, 21, 256)
 }
 
 func benchmarkOpTreeDSPFFullEvalFast(b *testing.B, lambda, domain, t int) {
@@ -466,6 +499,45 @@ func benchmarkOpTreeDSPFFullEvalFast(b *testing.B, lambda, domain, t int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := dspf.FullEvalFastAggregated(k1)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkOpTreeDSPFFullEvalSequential(b *testing.B, lambda, domain, t int) {
+	d, err := optreedpf.InitFactory(lambda, domain)
+	if err != nil {
+		b.Fatal(err)
+	}
+	dspf := NewDSPFFactory(d)
+	maxInputX := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(domain)), nil)
+
+	specialPoints := make([]*big.Int, t)
+	nonZeroElements := make([]*big.Int, t)
+
+	for i := 0; i < t; i++ {
+		x, err := rand.Int(rand.Reader, maxInputX)
+		if err != nil {
+			b.Errorf("Error generating random x: %v", err)
+		}
+		specialPoints[i] = x
+
+		y, err := rand.Int(rand.Reader, d.BetaMax) // Max input is the base field size
+		if err != nil {
+			b.Errorf("Error generating random y: %v", err)
+		}
+		nonZeroElements[i] = y
+	}
+
+	k1, _, err := dspf.Gen(specialPoints, nonZeroElements)
+	if err != nil {
+		return
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := dspf.FullEval(k1)
 		if err != nil {
 			b.Fatal(err)
 		}
