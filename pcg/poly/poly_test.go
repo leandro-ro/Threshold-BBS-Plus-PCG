@@ -456,6 +456,26 @@ func BenchmarkEvaluateNaiveN18(b *testing.B) { benchmarkEvaluationNaive(b, 26214
 func BenchmarkEvaluateNaiveN19(b *testing.B) { benchmarkEvaluationNaive(b, 524288) }
 func BenchmarkEvaluateNaiveN20(b *testing.B) { benchmarkEvaluationNaive(b, 1048576) }
 
+func BenchmarkMulSparseNaiveT64(t *testing.B)    { benchmarkMulSparseNaive(t, 32768, 64) }
+func BenchmarkMulSparseNaiveT128(t *testing.B)   { benchmarkMulSparseNaive(t, 32768, 128) }
+func BenchmarkMulSparseNaiveT256(t *testing.B)   { benchmarkMulSparseNaive(t, 32768, 256) }
+func BenchmarkMulSparseNaiveT512(t *testing.B)   { benchmarkMulSparseNaive(t, 32768, 512) }
+func BenchmarkMulSparseNaiveT1024(t *testing.B)  { benchmarkMulSparseNaive(t, 32768, 1024) }
+func BenchmarkMulSparseNaiveT2048(t *testing.B)  { benchmarkMulSparseNaive(t, 32768, 2048) }
+func BenchmarkMulSparseNaiveT4096(t *testing.B)  { benchmarkMulSparseNaive(t, 32768, 4096) }
+func BenchmarkMulSparseNaiveT8192(t *testing.B)  { benchmarkMulSparseNaive(t, 32768, 8192) }
+func BenchmarkMulSparseNaiveT16384(t *testing.B) { benchmarkMulSparseNaive(t, 32768, 16384) }
+
+func BenchmarkMulSparseFFTt64(t *testing.B)    { benchmarkMulSparseFFT(t, 32768, 64) }
+func BenchmarkMulSparseFFTt128(t *testing.B)   { benchmarkMulSparseFFT(t, 32768, 128) }
+func BenchmarkMulSparseFFTt256(t *testing.B)   { benchmarkMulSparseFFT(t, 32768, 256) }
+func BenchmarkMulSparseFFTt512(t *testing.B)   { benchmarkMulSparseFFT(t, 32768, 512) }
+func BenchmarkMulSparseFFTt1024(t *testing.B)  { benchmarkMulSparseFFT(t, 32768, 1024) }
+func BenchmarkMulSparseFFTt2048(t *testing.B)  { benchmarkMulSparseFFT(t, 32768, 2048) }
+func BenchmarkMulSparseFFTt4096(t *testing.B)  { benchmarkMulSparseFFT(t, 32768, 4096) }
+func BenchmarkMulSparseFFTt8192(t *testing.B)  { benchmarkMulSparseFFT(t, 32768, 8192) }
+func BenchmarkMulSparseFFTt16384(t *testing.B) { benchmarkMulSparseFFT(t, 32768, 16384) }
+
 func benchmarkMulNaive(b *testing.B, n int) {
 	slice1 := randomFrSlice(n)
 	poly1 := NewFromFr(slice1)
@@ -476,6 +496,35 @@ func benchmarkMulFFT(b *testing.B, n int) {
 	poly1 := NewFromFr(slice1)
 	slice2 := randomFrSlice(n)
 	poly2 := NewFromFr(slice2)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		p := poly1.DeepCopy()
+		b.StartTimer()
+		err := p.mulFFT(poly2)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchmarkMulSparseNaive(b *testing.B, degree, sparseness int) {
+	poly1 := randomSparsePoly(sparseness, degree)
+	poly2 := randomSparsePoly(sparseness, degree)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		p := poly1.DeepCopy()
+		b.StartTimer()
+		_ = p.mulNaive(poly2)
+	}
+}
+
+func benchmarkMulSparseFFT(b *testing.B, degree, sparseness int) {
+	poly1 := randomSparsePoly(sparseness, degree)
+	poly2 := randomSparsePoly(sparseness, degree)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -554,4 +603,16 @@ func randomBigIntSlice(n int, max *big.Int) []*big.Int {
 	}
 
 	return slice
+}
+
+func randomSparsePoly(sparseness, maxDegree int) *Polynomial {
+	coefficients := randomFrSlice(sparseness)
+
+	maxDegreeBigMinusOne := big.NewInt(int64(maxDegree - 1))
+	exponents := randomBigIntSlice(sparseness-1, maxDegreeBigMinusOne)
+
+	exponents = append(exponents, big.NewInt(int64(maxDegree)))
+
+	poly, _ := NewSparse(coefficients, exponents)
+	return poly
 }
