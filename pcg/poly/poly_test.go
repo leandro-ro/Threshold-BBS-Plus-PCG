@@ -465,8 +465,8 @@ func BenchmarkMulSparseNaiveD32768T768(t *testing.B)  { benchmarkMulSparseNaive(
 func BenchmarkMulSparseNaiveD32768T1024(t *testing.B) { benchmarkMulSparseNaive(t, 32768, 1024) }
 func BenchmarkMulSparseNaiveD32768T1536(t *testing.B) { benchmarkMulSparseNaive(t, 32768, 1536) }
 func BenchmarkMulSparseNaiveD32768T2048(t *testing.B) { benchmarkMulSparseNaive(t, 32768, 2048) }
+func BenchmarkMulSparseNaiveD32768T2560(t *testing.B) { benchmarkMulSparseNaive(t, 32768, 2560) }
 func BenchmarkMulSparseNaiveD32768T3072(t *testing.B) { benchmarkMulSparseNaive(t, 32768, 3072) }
-func BenchmarkMulSparseNaiveD32768T4096(t *testing.B) { benchmarkMulSparseNaive(t, 32768, 4096) }
 
 func BenchmarkMulSparseFFTD32768T16(t *testing.B)   { benchmarkMulSparseFFT(t, 32768, 16) }
 func BenchmarkMulSparseFFTD32768T128(t *testing.B)  { benchmarkMulSparseFFT(t, 32768, 128) }
@@ -477,8 +477,8 @@ func BenchmarkMulSparseFFTD32768T768(t *testing.B)  { benchmarkMulSparseFFT(t, 3
 func BenchmarkMulSparseFFTD32768T1024(t *testing.B) { benchmarkMulSparseFFT(t, 32768, 1024) }
 func BenchmarkMulSparseFFTD32768T1536(t *testing.B) { benchmarkMulSparseFFT(t, 32768, 1536) }
 func BenchmarkMulSparseFFTD32768T2048(t *testing.B) { benchmarkMulSparseFFT(t, 32768, 2048) }
+func BenchmarkMulSparseFFTD32768T2560(t *testing.B) { benchmarkMulSparseFFT(t, 32768, 2560) }
 func BenchmarkMulSparseFFTD32768T3072(t *testing.B) { benchmarkMulSparseFFT(t, 32768, 3072) }
-func BenchmarkMulSparseFFTD32768T4096(t *testing.B) { benchmarkMulSparseFFT(t, 32768, 4096) }
 
 func BenchmarkMulSparseNaiveD262144T16(t *testing.B)   { benchmarkMulSparseNaive(t, 262144, 16) }
 func BenchmarkMulSparseNaiveD262144T128(t *testing.B)  { benchmarkMulSparseNaive(t, 262144, 128) }
@@ -494,7 +494,6 @@ func BenchmarkMulSparseNaiveD262144T3584(t *testing.B) { benchmarkMulSparseNaive
 func BenchmarkMulSparseNaiveD262144T4096(t *testing.B) { benchmarkMulSparseNaive(t, 262144, 4096) }
 func BenchmarkMulSparseNaiveD262144T4609(t *testing.B) { benchmarkMulSparseNaive(t, 262144, 4609) }
 func BenchmarkMulSparseNaiveD262144T5120(t *testing.B) { benchmarkMulSparseNaive(t, 262144, 5120) }
-func BenchmarkMulSparseNaiveD262144T5632(t *testing.B) { benchmarkMulSparseNaive(t, 262144, 5632) }
 
 func BenchmarkMulSparseFFTD262144T16(t *testing.B)   { benchmarkMulSparseFFT(t, 262144, 16) }
 func BenchmarkMulSparseFFTD262144T128(t *testing.B)  { benchmarkMulSparseFFT(t, 262144, 128) }
@@ -510,7 +509,6 @@ func BenchmarkMulSparseFFTD262144T3584(t *testing.B) { benchmarkMulSparseFFT(t, 
 func BenchmarkMulSparseFFTD262144T4096(t *testing.B) { benchmarkMulSparseFFT(t, 262144, 4096) }
 func BenchmarkMulSparseFFTD262144T4609(t *testing.B) { benchmarkMulSparseFFT(t, 262144, 4609) }
 func BenchmarkMulSparseFFTD262144T5120(t *testing.B) { benchmarkMulSparseFFT(t, 262144, 5120) }
-func BenchmarkMulSparseFFTD262144T5632(t *testing.B) { benchmarkMulSparseFFT(t, 262144, 5632) }
 
 func benchmarkMulNaive(b *testing.B, n int) {
 	slice1 := randomFrSlice(n)
