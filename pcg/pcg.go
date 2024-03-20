@@ -26,7 +26,7 @@ type PCG struct {
 	rng    *rand.Rand // rng is the random number generator used to sample the PCG seeds
 }
 
-// NewPCG creates a new PCG with the given parameters.
+// NewPCG creates a new BBS+ PCG with the given parameters.
 // It uses OptreeDPF as the underlying DPF.
 func NewPCG(lambda, N, n, tau, c, t int) (*PCG, error) {
 	seed, _ := bytesToInt64(dpf.RandomSeed(8))
