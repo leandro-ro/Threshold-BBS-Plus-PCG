@@ -19,7 +19,7 @@ func TestPCGCombinedEnd2End(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, randPolys)
 
-	ring, err := pcg.GetRing(true)
+	ring, err := pcg.GetRing()
 	assert.Nil(t, err)
 	assert.NotNil(t, ring)
 
@@ -87,7 +87,7 @@ func TestPCGSeparateEnd2End(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, randPolys)
 
-	ring, err := pcg.GetRing(true)
+	ring, err := pcg.GetRing()
 	assert.Nil(t, err)
 	assert.NotNil(t, ring)
 
@@ -148,7 +148,7 @@ func TestPCGSeparateEnd2End(t *testing.T) {
 func TestRootsOfUnity(t *testing.T) {
 	pcg, err := NewPCG(128, 10, 2, 2, 2, 4) // Small lpn parameters for testing.
 
-	ring, err := pcg.GetRing(true)
+	ring, err := pcg.GetRing()
 	assert.Nil(t, err)
 
 	twoPowN := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(pcg.N)), nil)

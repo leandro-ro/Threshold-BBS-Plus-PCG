@@ -118,7 +118,6 @@ func BenchmarkOpEvalCombined5outof5_N17(b *testing.B) {
 	benchmarkOpEvalCombined(b, 17, 5, 5, 4, 16)
 }
 
-
 func BenchmarkOpEvalCombined6outof6_N10(b *testing.B) {
 	benchmarkOpEvalCombined(b, 10, 6, 6, 4, 16)
 }
@@ -262,7 +261,7 @@ func benchmarkOpEvalCombined(b *testing.B, N, tau, n, c, t int) {
 		b.Fatal(err)
 	}
 
-	ring, err := pcg.GetRing(true)
+	ring, err := pcg.GetRing()
 	if err != nil {
 		b.Fatal(err)
 	}

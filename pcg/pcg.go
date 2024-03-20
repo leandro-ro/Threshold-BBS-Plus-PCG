@@ -61,7 +61,7 @@ func NewPCG(lambda, N, n, tau, c, t int) (*PCG, error) {
 // Define the ring we are working with.
 // The cyclotomic polynomial defined here is F(x)= x^((2^(N+1))/2) + 1
 // s.t. we can calculate N roots of unity r s.t. F(r) = 0
-func (p *PCG) GetRing(useCyclotomic bool) (*Ring, error) {
+func (p *PCG) GetRing() (*Ring, error) {
 	// Define the Ring we work in
 	smallFactorThreshold := big.NewInt(1000)
 	groupOrderFactorization := multiplicativeGroupOrderFactorizationBLS12381()
