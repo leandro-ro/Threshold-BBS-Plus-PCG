@@ -50,7 +50,7 @@ func benchmarkDeriveTuple(b *testing.B, N int) {
 		b.Fatal(err)
 	}
 
-	ring, err := pcgenerator.GetRing()
+	ring, err := pcgenerator.GetRing(false)
 	if err != nil {
 		b.Fatal(err)
 	}

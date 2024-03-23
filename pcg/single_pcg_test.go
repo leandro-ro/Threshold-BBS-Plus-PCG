@@ -18,7 +18,7 @@ func TestSingleOLE(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, randPolys)
 
-	ring, err := pcg.GetRing()
+	ring, err := pcg.GetRing(false)
 	assert.Nil(t, err)
 	assert.NotNil(t, ring)
 
@@ -65,7 +65,7 @@ func TestSingleVOLE(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, randPolys)
 
-	ring, err := pcg.GetRing()
+	ring, err := pcg.GetRing(false)
 	assert.Nil(t, err)
 	assert.NotNil(t, ring)
 
@@ -241,7 +241,7 @@ func benchmarkSingleOLEpcgEvaluation(b *testing.B, N, c, t int) {
 	randPolys, err := pcg.PickRandomPolynomials()
 	assert.Nil(b, err)
 
-	ring, err := pcg.GetRing()
+	ring, err := pcg.GetRing(false)
 	assert.Nil(b, err)
 
 	b.ResetTimer()
@@ -272,7 +272,7 @@ func benchmarkSingleVOLEpcgEvaluation(b *testing.B, N, c, t int) {
 	randPolys, err := pcg.PickRandomPolynomials()
 	assert.Nil(b, err)
 
-	ring, err := pcg.GetRing()
+	ring, err := pcg.GetRing(false)
 	assert.Nil(b, err)
 
 	b.ResetTimer()

@@ -61,7 +61,7 @@ func NewPCG(lambda, N, n, tau, c, t int) (*PCG, error) {
 // Define the ring we are working with.
 // The cyclotomic polynomial defined here is F(x)= x^((2^(N+1))/2) + 1
 // s.t. we can calculate N roots of unity r s.t. F(r) = 0
-func (p *PCG) GetRing() (*Ring, error) {
+func (p *PCG) GetRing(fast bool) (*Ring, error) {
 	// Define the Ring we work in
 	smallFactorThreshold := big.NewInt(1000)
 	groupOrderFactorization := multiplicativeGroupOrderFactorizationBLS12381()
@@ -105,11 +105,32 @@ func (p *PCG) GetRing() (*Ring, error) {
 	// Generate roots
 	roots := make([]*bls12381.Fr, twoPowN.Int64())
 	pos := 0
-	for i := 0; i < int(twoPowNDouble.Int64()); i++ {
-		if math.Mod(float64(i), 2) == 1 { // only every second root
-			val := new(big.Int).Exp(powerIteratorBase, big.NewInt(int64(i)), groupOrder) // Start from i=0 for the first root
+
+	// We differentiate between fast and slow for benchmarking purposes
+	if fast {
+		// Pre-compute the square of powerIteratorBase to use for multiplication in each step
+		powerIteratorBaseSquared := new(big.Int).Mul(powerIteratorBase, powerIteratorBase)
+		powerIteratorBaseSquared.Mod(powerIteratorBaseSquared, groupOrder)
+
+		// Initialize val with the first exponentiation outside the loop
+		val := new(big.Int).Set(powerIteratorBase) // Assuming i=1 as the first relevant root for simplicity
+
+		for i := 1; i < int(twoPowNDouble.Int64()); i += 2 { // Start from i=1 and skip every second root
+			// For the first iteration, val is already set. For subsequent iterations, multiply by powerIteratorBaseSquared
+			if i > 1 {
+				val = val.Mul(val, powerIteratorBaseSquared).Mod(val, groupOrder)
+			}
+
 			roots[pos] = bls12381.NewFr().FromBytes(val.Bytes())
 			pos++
+		}
+	} else {
+		for i := 0; i < int(twoPowNDouble.Int64()); i++ {
+			if math.Mod(float64(i), 2) == 1 { // only every second root
+				val := new(big.Int).Exp(powerIteratorBase, big.NewInt(int64(i)), groupOrder) // Start from i=0 for the first root
+				roots[pos] = bls12381.NewFr().FromBytes(val.Bytes())
+				pos++
+			}
 		}
 	}
 
