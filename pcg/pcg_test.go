@@ -171,16 +171,54 @@ func TestRootsOfUnity(t *testing.T) {
 	}
 }
 
-func BenchmarkRingGen(b *testing.B) {
-	pcg, _ := NewPCG(128, 20, 2, 2, 2, 4)
+func BenchmarkRootOfUnityGen15(b *testing.B) {
+	benchmarkRootOfUnityGen(b, 15)
+}
+func BenchmarkRootOfUnityGen16(b *testing.B) {
+	benchmarkRootOfUnityGen(b, 16)
+}
+func BenchmarkRootOfUnityGen17(b *testing.B) {
+	benchmarkRootOfUnityGen(b, 17)
+}
+func BenchmarkRootOfUnityGen18(b *testing.B) {
+	benchmarkRootOfUnityGen(b, 18)
+}
+func BenchmarkRootOfUnityGen19(b *testing.B) {
+	benchmarkRootOfUnityGen(b, 19)
+}
+func BenchmarkRootOfUnityGen20(b *testing.B) {
+	benchmarkRootOfUnityGen(b, 20)
+}
+
+func BenchmarkRootOfUnityGenFast15(b *testing.B) {
+	benchmarkRootOfUnityGenFast(b, 15)
+}
+func BenchmarkRootOfUnityGenFast16(b *testing.B) {
+	benchmarkRootOfUnityGenFast(b, 16)
+}
+func BenchmarkRootOfUnityGenFast17(b *testing.B) {
+	benchmarkRootOfUnityGenFast(b, 17)
+}
+func BenchmarkRootOfUnityGenFast18(b *testing.B) {
+	benchmarkRootOfUnityGenFast(b, 18)
+}
+func BenchmarkRootOfUnityGenFast19(b *testing.B) {
+	benchmarkRootOfUnityGenFast(b, 19)
+}
+func BenchmarkRootOfUnityGenFast20(b *testing.B) {
+	benchmarkRootOfUnityGenFast(b, 20)
+}
+
+func benchmarkRootOfUnityGen(b *testing.B, N int) {
+	pcg, _ := NewPCG(128, N, 2, 2, 2, 4)
 
 	for i := 0; i < b.N; i++ {
 		_, _ = pcg.GetRing(false)
 	}
 }
 
-func BenchmarkRingGenFast(b *testing.B) {
-	pcg, _ := NewPCG(128, 20, 2, 2, 2, 4)
+func benchmarkRootOfUnityGenFast(b *testing.B, N int) {
+	pcg, _ := NewPCG(128, N, 2, 2, 2, 4)
 
 	for i := 0; i < b.N; i++ {
 		_, _ = pcg.GetRing(true)
