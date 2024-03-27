@@ -3,6 +3,7 @@ package pcg
 import (
 	bls12381 "github.com/kilic/bls12-381"
 	"github.com/stretchr/testify/assert"
+	"log"
 	"testing"
 )
 
@@ -232,6 +233,9 @@ func benchmarkSingleOLEpcgGeneration(b *testing.B, N, c, t int) {
 }
 
 func benchmarkSingleOLEpcgEvaluation(b *testing.B, N, c, t int) {
+	log.Printf("------------------- BENCHMARK SINGLE PCG OLE --------------------")
+	log.Printf("N: %d, c: %d, t: %d\n", N, c, t)
+
 	pcg, err := NewPCG(128, N, 2, 2, c, t)
 	assert.Nil(b, err)
 
@@ -263,6 +267,9 @@ func benchmarkSingleVOLEpcgGeneration(b *testing.B, N, c, t int) {
 }
 
 func benchmarkSingleVOLEpcgEvaluation(b *testing.B, N, c, t int) {
+	log.Printf("------------------- BENCHMARK SINGLE PCG VOLE --------------------")
+	log.Printf("N: %d, c: %d, t: %d\n", N, c, t)
+
 	pcg, err := NewPCG(128, N, 2, 2, c, t)
 	assert.Nil(b, err)
 

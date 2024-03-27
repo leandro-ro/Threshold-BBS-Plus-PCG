@@ -5,6 +5,7 @@ import (
 	bls12381 "github.com/kilic/bls12-381"
 	"math/big"
 	"pcg-bbs-plus/pcg/poly"
+	"time"
 )
 
 // GenSingleOlePCG generates PCG seeds embedding a single OLE.
@@ -56,6 +57,7 @@ func (p *PCG) genSingleOlePCG() ([]*oleSeed, error) {
 // evalSingleOle evaluates a single OLE seed.
 // This is intended for benchmarking purposes and can only be used with two parties (p.n=2).
 func (p *PCG) evalSingleOle(seed *oleSeed, rand []*poly.Polynomial, div *poly.Polynomial) (*poly.Polynomial, *poly.Polynomial, error) {
+	startTimerSetup := time.Now()
 	if p.n != 2 {
 		return nil, nil, fmt.Errorf("evalSingleOle can only be used with two parties")
 	}
@@ -72,7 +74,10 @@ func (p *PCG) evalSingleOle(seed *oleSeed, rand []*poly.Polynomial, div *poly.Po
 	if err != nil {
 		return nil, nil, fmt.Errorf("step 1: failed to generate polynomials for u from aBeta and aOmega: %w", err)
 	}
+	endTimerSetup := time.Now()
+	fmt.Println("Time for setup: ", endTimerSetup.Sub(startTimerSetup).Seconds())
 
+	startTimerFullEval := time.Now()
 	w := make([][]*poly.Polynomial, p.c)
 	for i := 0; i < p.c; i++ {
 		w[i] = make([]*poly.Polynomial, p.c)
@@ -91,7 +96,10 @@ func (p *PCG) evalSingleOle(seed *oleSeed, rand []*poly.Polynomial, div *poly.Po
 			w[i][j].Set(poly.NewFromFr(eval0))
 		}
 	}
+	endTimerFullEval := time.Now()
+	fmt.Println("Time for full eval: ", endTimerFullEval.Sub(startTimerFullEval).Seconds())
 
+	startTimerRingElement := time.Now()
 	// Evaluate the polynomials
 	ei, err := p.evalFinalShare(e, rand, div)
 	if err != nil {
@@ -105,6 +113,8 @@ func (p *PCG) evalSingleOle(seed *oleSeed, rand []*poly.Polynomial, div *poly.Po
 	if err != nil {
 		return nil, nil, err
 	}
+	endTimerRingElement := time.Now()
+	fmt.Println("Time for ring element: ", endTimerRingElement.Sub(startTimerRingElement).Seconds())
 
 	return ei, wi, nil
 }
@@ -156,6 +166,7 @@ func (p *PCG) genSingleVolePCG() ([]*voleSeed, error) {
 // evalSingleVole evaluates a single VOLE seed.
 // This is intended for benchmarking purposes and can only be used with two parties (p.n=2).
 func (p *PCG) evalSingleVole(seed *voleSeed, rand []*poly.Polynomial, div *poly.Polynomial) (*poly.Polynomial, *poly.Polynomial, error) {
+	startTimerSetup := time.Now()
 	if p.n != 2 {
 		return nil, nil, fmt.Errorf("evalSingleVole can only be used with two parties")
 	}
@@ -172,7 +183,10 @@ func (p *PCG) evalSingleVole(seed *voleSeed, rand []*poly.Polynomial, div *poly.
 	if err != nil {
 		return nil, nil, fmt.Errorf("step 1: failed to generate polynomials for u from aBeta and aOmega: %w", err)
 	}
+	endTimerSetup := time.Now()
+	fmt.Println("Time for setup: ", endTimerSetup.Sub(startTimerSetup).Seconds())
 
+	startTimerFullEval := time.Now()
 	w := make([]*poly.Polynomial, p.c)
 	for i := 0; i < p.c; i++ {
 		w[i] = new(poly.Polynomial)
@@ -189,7 +203,10 @@ func (p *PCG) evalSingleVole(seed *voleSeed, rand []*poly.Polynomial, div *poly.
 		w[i] = new(poly.Polynomial)
 		w[i].Set(poly.NewFromFr(eval0))
 	}
+	endTimerFullEval := time.Now()
+	fmt.Println("Time for full eval: ", endTimerFullEval.Sub(startTimerFullEval).Seconds())
 
+	startTimerRingElement := time.Now()
 	// Evaluate the polynomials
 	ei, err := p.evalFinalShare(e, rand, div)
 	if err != nil {
@@ -199,6 +216,8 @@ func (p *PCG) evalSingleVole(seed *voleSeed, rand []*poly.Polynomial, div *poly.
 	if err != nil {
 		return nil, nil, err
 	}
+	endTimerRingElement := time.Now()
+	fmt.Println("Time for ring element: ", endTimerRingElement.Sub(startTimerRingElement).Seconds())
 
 	if seed.index == 0 {
 		return ei, wi, nil
