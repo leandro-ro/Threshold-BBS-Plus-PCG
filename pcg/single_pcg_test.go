@@ -126,20 +126,6 @@ func BenchmarkSingleOLEPCGEvaluationN18(b *testing.B) { benchmarkSingleOLEpcgEva
 func BenchmarkSingleOLEPCGEvaluationN19(b *testing.B) { benchmarkSingleOLEpcgEvaluation(b, 19, 4, 16) }
 func BenchmarkSingleOLEPCGEvaluationN20(b *testing.B) { benchmarkSingleOLEpcgEvaluation(b, 20, 4, 16) }
 
-// Benchmark different c and t values
-func BenchmarkSingleOLEPCGGenerationN13C8T5(b *testing.B) {
-	benchmarkSingleOLEpcgGeneration(b, 13, 8, 5)
-}
-func BenchmarkSingleOLEPCGGenerationN13C2T76(b *testing.B) {
-	benchmarkSingleOLEpcgGeneration(b, 13, 2, 76)
-}
-func BenchmarkSingleOLEPCGEvaluationN13C8T5(b *testing.B) {
-	benchmarkSingleOLEpcgEvaluation(b, 13, 8, 5)
-}
-func BenchmarkSingleOLEPCGEvaluationN13C2T76(b *testing.B) {
-	benchmarkSingleOLEpcgEvaluation(b, 13, 2, 76)
-}
-
 func BenchmarkSingleVOLEPCGGenerationN13C8T5(b *testing.B) {
 	benchmarkSingleVOLEpcgGeneration(b, 13, 8, 5)
 }
