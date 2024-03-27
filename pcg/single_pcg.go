@@ -3,6 +3,7 @@ package pcg
 import (
 	"fmt"
 	bls12381 "github.com/kilic/bls12-381"
+	"log"
 	"math/big"
 	"pcg-bbs-plus/pcg/poly"
 	"time"
@@ -75,7 +76,7 @@ func (p *PCG) evalSingleOle(seed *oleSeed, rand []*poly.Polynomial, div *poly.Po
 		return nil, nil, fmt.Errorf("step 1: failed to generate polynomials for u from aBeta and aOmega: %w", err)
 	}
 	endTimerSetup := time.Now()
-	fmt.Println("Time for setup: ", endTimerSetup.Sub(startTimerSetup).Seconds())
+	log.Println("Time for setup: ", endTimerSetup.Sub(startTimerSetup).Seconds())
 
 	startTimerFullEval := time.Now()
 	w := make([][]*poly.Polynomial, p.c)
@@ -97,7 +98,7 @@ func (p *PCG) evalSingleOle(seed *oleSeed, rand []*poly.Polynomial, div *poly.Po
 		}
 	}
 	endTimerFullEval := time.Now()
-	fmt.Println("Time for full eval: ", endTimerFullEval.Sub(startTimerFullEval).Seconds())
+	log.Println("Time for full eval: ", endTimerFullEval.Sub(startTimerFullEval).Seconds())
 
 	startTimerRingElement := time.Now()
 	// Evaluate the polynomials
@@ -114,7 +115,7 @@ func (p *PCG) evalSingleOle(seed *oleSeed, rand []*poly.Polynomial, div *poly.Po
 		return nil, nil, err
 	}
 	endTimerRingElement := time.Now()
-	fmt.Println("Time for ring element: ", endTimerRingElement.Sub(startTimerRingElement).Seconds())
+	log.Println("Time for ring element: ", endTimerRingElement.Sub(startTimerRingElement).Seconds())
 
 	return ei, wi, nil
 }
@@ -184,7 +185,7 @@ func (p *PCG) evalSingleVole(seed *voleSeed, rand []*poly.Polynomial, div *poly.
 		return nil, nil, fmt.Errorf("step 1: failed to generate polynomials for u from aBeta and aOmega: %w", err)
 	}
 	endTimerSetup := time.Now()
-	fmt.Println("Time for setup: ", endTimerSetup.Sub(startTimerSetup).Seconds())
+	log.Println("Time for setup: ", endTimerSetup.Sub(startTimerSetup).Seconds())
 
 	startTimerFullEval := time.Now()
 	w := make([]*poly.Polynomial, p.c)
@@ -204,7 +205,7 @@ func (p *PCG) evalSingleVole(seed *voleSeed, rand []*poly.Polynomial, div *poly.
 		w[i].Set(poly.NewFromFr(eval0))
 	}
 	endTimerFullEval := time.Now()
-	fmt.Println("Time for full eval: ", endTimerFullEval.Sub(startTimerFullEval).Seconds())
+	log.Println("Time for full eval: ", endTimerFullEval.Sub(startTimerFullEval).Seconds())
 
 	startTimerRingElement := time.Now()
 	// Evaluate the polynomials
@@ -217,7 +218,7 @@ func (p *PCG) evalSingleVole(seed *voleSeed, rand []*poly.Polynomial, div *poly.
 		return nil, nil, err
 	}
 	endTimerRingElement := time.Now()
-	fmt.Println("Time for ring element: ", endTimerRingElement.Sub(startTimerRingElement).Seconds())
+	log.Println("Time for ring element: ", endTimerRingElement.Sub(startTimerRingElement).Seconds())
 
 	if seed.index == 0 {
 		return ei, wi, nil
