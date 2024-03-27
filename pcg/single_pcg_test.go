@@ -222,7 +222,7 @@ func benchmarkSingleOLEpcgEvaluation(b *testing.B, N, c, t int) {
 	assert.Nil(b, err)
 
 	b.ResetTimer()
-	for i := 0; i < 1; i++ {
+	for i := 0; i < b.N; i++ {
 		_, _, err := pcg.evalSingleOle(seeds[0], randPolys, ring.Div)
 		assert.Nil(b, err)
 	}
@@ -256,7 +256,7 @@ func benchmarkSingleVOLEpcgEvaluation(b *testing.B, N, c, t int) {
 	assert.Nil(b, err)
 
 	b.ResetTimer()
-	for i := 0; i < 1; i++ {
+	for i := 0; i < b.N; i++ {
 		_, _, err := pcg.evalSingleVole(seeds[0], randPolys, ring.Div)
 		assert.Nil(b, err)
 	}
