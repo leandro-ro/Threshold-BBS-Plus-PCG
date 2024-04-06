@@ -24,6 +24,8 @@
         - `poly_test.go`
     - `pcg.go`: Implements the PCG. Also provides and optimized PCG Eval for n-out-of-n case.
     - `pcg_test.go`: Holds the end-to-end tests for the PCG Evaluation.
+    - `single_pcg.go`: Implements a PCG for a single two-party (V)OLE for benchmarking.
+    - `single_pcg_test.go`:
     - `seed.go`
     - `tuple.go`
     - `tuple_test.go`
