@@ -43,3 +43,18 @@ func (s *Seed) Serialize() ([]byte, error) {
 func (s *Seed) Deserialize(data []byte) error {
 	return fmt.Errorf("not implemented")
 }
+
+type oleSeed struct {
+	index        int
+	exponents    seedExponents
+	coefficients seedCoefficients
+	V            [][]*DSPFKeyPair
+}
+
+type voleSeed struct {
+	index        int
+	constant     *bls12381.Fr
+	exponents    seedExponents
+	coefficients seedCoefficients
+	V            []*DSPFKeyPair
+}

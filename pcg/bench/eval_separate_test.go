@@ -236,7 +236,7 @@ func benchmarkOpEvalSeparate(b *testing.B, N, tau, n, c, t int) {
 		b.Fatal(err)
 	}
 
-	ring, err := pcg.GetRing(true)
+	ring, err := pcg.GetRing(false)
 	if err != nil {
 		b.Fatal(err)
 	}

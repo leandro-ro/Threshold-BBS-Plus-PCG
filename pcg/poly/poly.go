@@ -371,14 +371,26 @@ func (p *Polynomial) Evaluate(x *bls12381.Fr) *bls12381.Fr {
 	return p.evaluateParallel(x)
 }
 
+// evaluateNaive evaluates the polynomial at a given value of x with naive method.
+// only used for benchmarking.
+func (p *Polynomial) evaluateNaive(x *bls12381.Fr) *bls12381.Fr {
+	result := bls12381.NewFr().Zero()
+	for exp, coeff := range p.Coefficients {
+		tmp := bls12381.NewFr().Zero()
+		tmp.Exp(x, big.NewInt(int64(exp)))
+		tmp.Mul(tmp, coeff)
+		result.Add(result, tmp)
+	}
+	return result
+}
+
 // evaluateSequential evaluates the polynomial at a given value of x sequentially.
 func (p *Polynomial) evaluateSequential(x *bls12381.Fr) *bls12381.Fr {
 	result := bls12381.NewFr().Zero()
 
 	degree, err := p.Degree()
 	if err != nil {
-		// Propagate the error or handle it as needed
-		panic(err) // Example error handling
+		panic(err)
 	}
 
 	for i := degree; i >= 0; i-- {
